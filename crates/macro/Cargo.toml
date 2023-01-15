@@ -1,0 +1,21 @@
+[package]
+name = "godot-wasm-bindgen-macro"
+version = "0.1.0"
+edition = "2021"
+authors = ["Dheatly23 <71598333+Dheatly23@users.noreply.github.com>"]
+license = "Apache-2.0"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+leb128 = "^0.2.0"
+quote = "^1.0"
+proc-macro2 = "^1.0"
+
+[dependencies.syn]
+version = "^1.0"
+features = ["full"]
+
+[features]
+xxx_debug_print_generated_code = []
