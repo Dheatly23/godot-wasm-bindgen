@@ -32,6 +32,7 @@ pub fn add_runtime(module: &mut Module) -> Result<RuntimeData, Error> {
 
         let e = module.locals.add(ValType::Externref);
         let i = module.locals.add(ValType::I32);
+        let j = module.locals.add(ValType::I32);
 
         builder
             .func_body()
@@ -51,20 +52,30 @@ pub fn add_runtime(module: &mut Module) -> Result<RuntimeData, Error> {
             .if_else(
                 None,
                 |then| {
-                    then.block(None, |b| {
-                        let id = b.id();
-                        b.local_get(e)
-                            .const_(Value::I32(1))
-                            .table_grow(extern_table)
-                            .const_(Value::I32(-1))
-                            .binop(BinaryOp::I32Ne)
-                            .br_if(id)
-                            .unreachable();
-                    })
-                    .const_(Value::I32(1))
-                    .local_get(i)
-                    .binop(BinaryOp::I32Add)
-                    .global_set(head_global);
+                    then.table_size(extern_table)
+                        .local_tee(i)
+                        .const_(Value::I32(2))
+                        .binop(BinaryOp::I32Mul)
+                        .block(None, |b| {
+                            let id = b.id();
+                            b.ref_null(ValType::Externref)
+                                .const_(Value::I32(1))
+                                .table_grow(extern_table)
+                                .local_tee(j)
+                                .const_(Value::I32(-1))
+                                .binop(BinaryOp::I32Ne)
+                                .br_if(id)
+                                .unreachable();
+                        })
+                        .const_(Value::I32(-1))
+                        .local_get(j)
+                        .local_get(i)
+                        .binop(BinaryOp::I32Sub)
+                        .const_(Value::I32(2))
+                        .binop(BinaryOp::I32Mul)
+                        .memory_fill(extern_memory)
+                        .local_get(i)
+                        .global_set(head_global);
                 },
                 |el| {
                     el.local_get(i)
