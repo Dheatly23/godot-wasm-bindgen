@@ -113,6 +113,10 @@ pub fn add_runtime(module: &mut Module) -> Result<RuntimeData, Error> {
 
         builder
             .func_body()
+            .block(None, |b| {
+                let id = b.id();
+                b.local_get(i).br_if(id).return_();
+            })
             .local_get(i)
             .const_(Value::I32(1))
             .binop(BinaryOp::I32Sub)
