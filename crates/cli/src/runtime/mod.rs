@@ -6,12 +6,13 @@ use walrus::{FunctionBuilder, FunctionId, GlobalId, InitExpr, MemoryId, Module, 
 
 #[allow(dead_code)]
 pub struct RuntimeData {
-    pub extern_table: TableId,
+    extern_table: TableId,
     extern_memory: MemoryId,
 
     head_global: GlobalId,
     pub alloc_func: FunctionId,
     pub free_func: FunctionId,
+    pub get_func: FunctionId,
 }
 
 pub fn add_runtime(module: &mut Module) -> Result<RuntimeData, Error> {
@@ -135,6 +136,33 @@ pub fn add_runtime(module: &mut Module) -> Result<RuntimeData, Error> {
 
         builder.finish(vec![i], &mut module.funcs)
     };
+    let get_func = {
+        let mut builder =
+            FunctionBuilder::new(&mut module.types, &[ValType::I32], &[ValType::Externref]);
+
+        builder.name(String::from("godot_wasm.get"));
+
+        let i = module.locals.add(ValType::I32);
+
+        builder
+            .func_body()
+            .local_get(i)
+            .unop(UnaryOp::I32Eqz)
+            .if_else(
+                Some(ValType::Externref),
+                |then| {
+                    then.ref_null(ValType::Externref);
+                },
+                |el| {
+                    el.local_get(i)
+                        .const_(Value::I32(1))
+                        .binop(BinaryOp::I32Sub)
+                        .table_get(extern_table);
+                },
+            );
+
+        builder.finish(vec![i], &mut module.funcs)
+    };
 
     let runtime = RuntimeData {
         extern_table,
@@ -143,6 +171,7 @@ pub fn add_runtime(module: &mut Module) -> Result<RuntimeData, Error> {
         head_global,
         alloc_func,
         free_func,
+        get_func,
     };
 
     imports::generate_imports(&mut *module, &runtime)?;

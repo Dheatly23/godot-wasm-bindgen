@@ -12,9 +12,9 @@ pub fn substitute_exports(
     runtime: &RuntimeData,
 ) -> Result<(), Error> {
     let RuntimeData {
-        extern_table,
         alloc_func,
         free_func,
+        get_func,
         ..
     } = *runtime;
 
@@ -68,7 +68,7 @@ pub fn substitute_exports(
 
         for &r in results.iter().rev() {
             body.local_tee(temp)
-                .table_get(extern_table)
+                .call(get_func)
                 .local_set(r)
                 .local_get(temp)
                 .call(free_func);

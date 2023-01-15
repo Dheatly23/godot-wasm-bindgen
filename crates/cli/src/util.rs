@@ -17,9 +17,8 @@ pub fn prepend(bytes: &mut Vec<u8>, data: &[u8]) {
     bytes[0..ld].copy_from_slice(data);
 }
 
-pub fn read_tagged<T, F, R>(reader: &mut T, f: F) -> Result<R, Error>
+pub fn read_tagged<F, R>(reader: &mut dyn Read, f: F) -> Result<R, Error>
 where
-    T: Read,
     for<'a> F: FnOnce(&'a mut dyn Read) -> Result<R, Error>,
 {
     let len = leb128::read::unsigned(&mut *reader)?.try_into()?;

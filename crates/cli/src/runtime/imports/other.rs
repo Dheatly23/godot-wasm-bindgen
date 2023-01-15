@@ -17,8 +17,8 @@ pub fn generate_imports(
         builder.name(String::from("godot_wasm.duplicate"));
 
         let RuntimeData {
-            extern_table,
             alloc_func,
+            get_func,
             ..
         } = *runtime;
 
@@ -27,7 +27,7 @@ pub fn generate_imports(
         builder
             .func_body()
             .local_get(i)
-            .table_get(extern_table)
+            .call(get_func)
             .call(alloc_func);
 
         Ok(builder.finish(vec![i], &mut module.funcs))

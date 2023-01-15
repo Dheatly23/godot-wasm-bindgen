@@ -33,7 +33,7 @@ macro_rules! generate {
                     builder.name(String::from(concat!("godot_wasm.", $rname)));
 
                     let RuntimeData {
-                        extern_table,
+                        get_func,
                         ..
                     } = *runtime;
 
@@ -43,7 +43,7 @@ macro_rules! generate {
                     builder
                         .func_body()
                         .local_get(i)
-                        .table_get(extern_table)
+                        .call(get_func)
                         .local_get(p)
                         .call(import_func);
 
