@@ -53,9 +53,7 @@ pub fn add_runtime(module: &mut Module) -> Result<RuntimeData, Error> {
                 None,
                 |then| {
                     then.table_size(extern_table)
-                        .local_tee(i)
-                        .const_(Value::I32(2))
-                        .binop(BinaryOp::I32Mul)
+                        .local_set(i)
                         .block(None, |b| {
                             let id = b.id();
                             b.ref_null(ValType::Externref)
@@ -67,13 +65,40 @@ pub fn add_runtime(module: &mut Module) -> Result<RuntimeData, Error> {
                                 .br_if(id)
                                 .unreachable();
                         })
-                        .const_(Value::I32(-1))
                         .local_get(j)
                         .local_get(i)
                         .binop(BinaryOp::I32Sub)
-                        .const_(Value::I32(2))
-                        .binop(BinaryOp::I32Mul)
-                        .memory_fill(extern_memory)
+                        .local_set(j)
+                        .block(None, |b| {
+                            let b_id = b.id();
+                            b.loop_(None, |l| {
+                                let l_id = l.id();
+                                l.local_get(j)
+                                    .unop(UnaryOp::I32Eqz)
+                                    .br_if(b_id)
+                                    .local_get(i)
+                                    .const_(Value::I32(2))
+                                    .binop(BinaryOp::I32Mul)
+                                    .const_(Value::I32(-1))
+                                    .store(
+                                        extern_memory,
+                                        StoreKind::I32_16 { atomic: false },
+                                        MemArg {
+                                            align: 1,
+                                            offset: 0,
+                                        },
+                                    )
+                                    .local_get(i)
+                                    .const_(Value::I32(1))
+                                    .binop(BinaryOp::I32Add)
+                                    .local_set(i)
+                                    .local_get(j)
+                                    .const_(Value::I32(1))
+                                    .binop(BinaryOp::I32Sub)
+                                    .local_set(j)
+                                    .br(l_id);
+                            });
+                        })
                         .local_get(i)
                         .global_set(head_global);
                 },
