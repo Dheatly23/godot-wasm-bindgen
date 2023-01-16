@@ -1,5 +1,6 @@
 use std::fmt;
 use std::marker::PhantomData;
+use std::mem;
 
 #[derive(Debug)]
 #[repr(transparent)]
@@ -15,9 +16,9 @@ extern "C" {
 
 impl Clone for GodotValue {
     fn clone(&self) -> Self {
-        Self {
-            ptr: unsafe { duplicate(self.ptr) },
-        }
+        let ptr = unsafe { duplicate(self.ptr) };
+        debug_assert_ne!(self.ptr, ptr, "Duplicated pointer!");
+        Self { ptr }
     }
 }
 
@@ -32,63 +33,113 @@ impl Drop for GodotValue {
 }
 
 macro_rules! typeis {
-    ($($fname:ident),* $(,)?) => {
+    ($(($vname:ident : $ifunc:ident => $iname:literal)),* $(,)?) => {
         #[link(wasm_import_module = "godot_wasm")]
         extern "C" {$(
-            fn $fname(ptr: u32) -> u32;
+            #[link_name = $iname]
+            fn $ifunc(ptr: u32) -> u32;
         )*}
 
         impl GodotValue {$(
-            pub fn $fname(&self) -> bool {
+            pub fn $ifunc(&self) -> bool {
                 if self.ptr == 0 {
                     false
                 } else {
                     unsafe {
-                        $fname(self.ptr) != 0
+                        $ifunc(self.ptr) != 0
                     }
                 }
             }
         )*}
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        pub enum ValueType {
+            Null,
+            $($vname),*
+        }
+
+        impl fmt::Display for ValueType {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "{}", match self {
+                    Self::Null => "Null",
+                    $(Self::$vname => stringify!($vname)),*
+                })
+            }
+        }
+
+        impl<'a> From<&'a GodotValue> for ValueType {
+            fn from(v: &'a GodotValue) -> Self {
+                if v.is_null() { Self::Null }
+                $( else if v.$ifunc() { Self::$vname } )*
+                else { panic!("Unknown value!") }
+            }
+        }
+
+        impl GodotValue {
+            #[inline]
+            pub fn value_type(&self) -> ValueType {
+                ValueType::from(self)
+            }
+        }
     };
 }
 
 impl GodotValue {
-    pub fn is_null(&self) -> bool {
+    #[inline]
+    pub unsafe fn to_raw(&self) -> u32 {
+        self.ptr
+    }
+
+    #[inline]
+    pub unsafe fn into_raw(self) -> u32 {
+        let ret = self.ptr;
+        mem::forget(self);
+        ret
+    }
+
+    #[inline]
+    pub unsafe fn from_raw(ptr: u32) -> Self {
+        Self { ptr }
+    }
+
+    #[inline]
+    pub const fn is_null(&self) -> bool {
         self.ptr == 0
     }
 
-    pub fn is_nonnull(&self) -> bool {
+    #[inline]
+    pub const fn is_nonnull(&self) -> bool {
         self.ptr != 0
     }
 }
 
 typeis!(
-    is_bool,
-    is_int,
-    is_float,
-    is_string,
-    is_vector2,
-    is_rect2,
-    is_vector3,
-    is_transform2d,
-    is_plane,
-    is_quat,
-    is_aabb,
-    is_basis,
-    is_transform,
-    is_color,
-    is_nodepath,
-    is_rid,
-    is_object,
-    is_dictionary,
-    is_array,
-    is_byte_array,
-    is_int_array,
-    is_float_array,
-    is_string_array,
-    is_vector2_array,
-    is_vector3_array,
-    is_color_array,
+    (Bool: is_bool => "bool.is"),
+    (I64: is_int => "int.is"),
+    (F64: is_float => "float.is"),
+    (GodotString: is_string => "string.is"),
+    (Vector2: is_vector2 => "vector2.is"),
+    (Rect2: is_rect2 => "rect2.is"),
+    (Vector3: is_vector3 => "vector3.is"),
+    (Transform2D: is_transform2d => "transform2d.is"),
+    (Plane: is_plane => "plane.is"),
+    (Quat: is_quat => "quat.is"),
+    (Aabb: is_aabb => "aabb.is"),
+    (Basis: is_basis => "basis.is"),
+    (Transform: is_transform => "transform.is"),
+    (Color: is_color => "color.is"),
+    (Nodepath: is_nodepath => "nodepath.is"),
+    (Rid: is_rid => "rid.is"),
+    (Object: is_object => "object.is"),
+    (Dictionary: is_dictionary => "dictionary.is"),
+    (Array: is_array => "array.is"),
+    (ByteArray: is_byte_array => "byte_array.is"),
+    (IntArray: is_int_array => "int_array.is"),
+    (FloatArray: is_float_array => "float_array.is"),
+    (StringArray: is_string_array => "string_array.is"),
+    (Vector2Array: is_vector2_array => "vector2_array.is"),
+    (Vector3Array: is_vector3_array => "vector3_array.is"),
+    (ColorArray: is_color_array => "color_array.is"),
 );
 
 pub struct NullValueError(PhantomData<&'static str>);
@@ -100,6 +151,28 @@ impl fmt::Display for NullValueError {
 }
 
 impl fmt::Debug for NullValueError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        <Self as fmt::Display>::fmt(self, f)
+    }
+}
+
+pub struct TypecastError {
+    expect: ValueType,
+}
+
+impl TypecastError {
+    pub(crate) fn new(expect: ValueType) -> Self {
+        Self { expect }
+    }
+}
+
+impl fmt::Display for TypecastError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Casting error (expected {})", self.expect)
+    }
+}
+
+impl fmt::Debug for TypecastError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         <Self as fmt::Display>::fmt(self, f)
     }

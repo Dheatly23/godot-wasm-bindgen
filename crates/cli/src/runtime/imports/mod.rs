@@ -1,5 +1,6 @@
 mod other;
 mod primitive;
+mod typeis;
 
 use std::collections::HashMap;
 
@@ -23,6 +24,7 @@ pub fn generate_imports(module: &mut Module, runtime: &RuntimeData) -> Result<()
     imports!((module, func_map, runtime) => [
         other,
         primitive,
+        typeis,
     ]);
 
     println!("{:?}", func_map);
