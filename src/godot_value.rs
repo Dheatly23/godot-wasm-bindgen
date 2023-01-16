@@ -200,7 +200,7 @@ macro_rules! typecast {
                 fn try_from(v: &GodotValue) -> Result<Self, Self::Error> {
                     if v.ptr == 0 {
                         Err(TypecastError::new(ValueType::$vname))
-                    } else if v.$ifunc() {
+                    } else if !v.$ifunc() {
                         Err(TypecastError::new(ValueType::$vname))
                     } else {
                         let mut ret = <typecast!(@typeto $($t)*)>::default();
