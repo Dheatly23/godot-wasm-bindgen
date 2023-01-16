@@ -11,6 +11,7 @@ use walrus::{FunctionId, GlobalKind, ImportKind, InitExpr, Module};
 use crate::runtime::RuntimeData;
 
 const MODULE_NAME: &str = "godot_wasm";
+const EXTERNREF_MODULE: &str = "godot_object_v2";
 
 macro_rules! imports {
     (($mod:expr, $func_map:expr, $runtime:expr) => [$($f:ident),* $(,)?]) => {$(

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::Error;
 use walrus::{FunctionBuilder, FunctionId, Module, ValType};
 
-use super::{replace_import, MODULE_NAME};
+use super::{replace_import, EXTERNREF_MODULE};
 use crate::runtime::RuntimeData;
 
 macro_rules! generate {
@@ -20,7 +20,7 @@ macro_rules! generate {
                         &[ValType::I32],
                     );
                     let (import_func, _) = module.add_import_func(
-                        MODULE_NAME,
+                        EXTERNREF_MODULE,
                         $rname,
                         ty,
                     );
@@ -56,7 +56,7 @@ macro_rules! generate {
                         &[ValType::Externref],
                     );
                     let (import_func, _) = module.add_import_func(
-                        MODULE_NAME,
+                        EXTERNREF_MODULE,
                         $wname,
                         ty,
                     );
