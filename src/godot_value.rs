@@ -184,7 +184,7 @@ macro_rules! typecast {
     (@typeto $t:ty) => {$t};
     (@typefrom $t:ty, $t2:tt) => {$t};
     (@typeto $t:ty, $t2:tt) => {$t2};
-    ($(($rfunc:ident => $rname:literal, $wfunc:ident => $wname:literal) => [$($t:tt)*]),* $(,)?) => {
+    ($(($vname:ident => $ifunc:ident, $rfunc:ident => $rname:literal, $wfunc:ident => $wname:literal) => [$($t:tt)*]),* $(,)?) => {
         #[link(wasm_import_module = "godot_wasm")]
         extern "C" {$(
             #[link_name = $rname]
@@ -195,11 +195,13 @@ macro_rules! typecast {
 
         $(
             impl TryFrom<&'_ GodotValue> for typecast!(@typefrom $($t)*) {
-                type Error = NullValueError;
+                type Error = TypecastError;
 
                 fn try_from(v: &GodotValue) -> Result<Self, Self::Error> {
                     if v.ptr == 0 {
-                        Err(NullValueError(PhantomData))
+                        Err(TypecastError::new(ValueType::$vname))
+                    } else if v.$ifunc() {
+                        Err(TypecastError::new(ValueType::$vname))
                     } else {
                         let mut ret = <typecast!(@typeto $($t)*)>::default();
 
@@ -207,7 +209,7 @@ macro_rules! typecast {
                         debug_assert_ne!(v, 0, "Read operation failed");
 
                         match v {
-                            0 => Err(NullValueError(PhantomData)),
+                            0 => Err(TypecastError::new(ValueType::$vname)),
                             _ => Ok(ret.into()),
                         }
                     }
@@ -215,7 +217,7 @@ macro_rules! typecast {
             }
 
             impl TryFrom<GodotValue> for typecast!(@typefrom $($t)*) {
-                type Error = NullValueError;
+                type Error = TypecastError;
 
                 #[inline]
                 fn try_from(v: GodotValue) -> Result<Self, Self::Error> {
@@ -251,7 +253,7 @@ macro_rules! typecast {
 macro_rules! typecast_proxy {
     ($($from:ty => $to:ty),* $(,)?) => {$(
         impl TryFrom<&'_ GodotValue> for $to {
-            type Error = NullValueError;
+            type Error = TypecastError;
 
             fn try_from(v: &GodotValue) -> Result<Self, Self::Error> {
                 Ok(<$from>::try_from(v)? as _)
@@ -259,7 +261,7 @@ macro_rules! typecast_proxy {
         }
 
         impl TryFrom<GodotValue> for $to {
-            type Error = NullValueError;
+            type Error = TypecastError;
 
             fn try_from(v: GodotValue) -> Result<Self, Self::Error> {
                 Self::try_from(&v)
@@ -305,19 +307,19 @@ impl Into<bool> for BoolWrapper {
 }
 
 typecast!(
-    (read_bool => "bool.read", write_bool => "bool.write") => [bool, BoolWrapper],
-    (read_int => "int.read", write_int => "int.write") => [i64],
-    (read_float => "float.read", write_float => "float.write") => [f64],
-    (read_vector2 => "vector2.read", write_vector2 => "vector2.write") => [crate::primitive::Vector2],
-    (read_vector3 => "vector3.read", write_vector3 => "vector3.write") => [crate::primitive::Vector3],
-    (read_rect2 => "rect2.read", write_rect2 => "rect2.write") => [crate::primitive::Rect2],
-    (read_transform2d => "transform2d.read", write_transform2d => "transform2d.write") => [crate::primitive::Transform2D],
-    (read_plane => "plane.read", write_plane => "plane.write") => [crate::primitive::Plane],
-    (read_quat => "quat.read", write_quat => "quat.write") => [crate::primitive::Quat],
-    (read_aabb => "aabb.read", write_aabb => "aabb.write") => [crate::primitive::Aabb],
-    (read_basis => "basis.read", write_basis => "basis.write") => [crate::primitive::Basis],
-    (read_transform => "transform.read", write_transform => "transform.write") => [crate::primitive::Transform],
-    (read_color => "color.read", write_color => "color.write") => [crate::primitive::Color],
+    (Bool => is_bool, read_bool => "bool.read", write_bool => "bool.write") => [bool, BoolWrapper],
+    (I64 => is_int, read_int => "int.read", write_int => "int.write") => [i64],
+    (F64 => is_float, read_float => "float.read", write_float => "float.write") => [f64],
+    (Vector2 => is_vector2, read_vector2 => "vector2.read", write_vector2 => "vector2.write") => [crate::primitive::Vector2],
+    (Vector3 => is_vector3, read_vector3 => "vector3.read", write_vector3 => "vector3.write") => [crate::primitive::Vector3],
+    (Rect2 => is_rect2, read_rect2 => "rect2.read", write_rect2 => "rect2.write") => [crate::primitive::Rect2],
+    (Transform2D => is_transform2d, read_transform2d => "transform2d.read", write_transform2d => "transform2d.write") => [crate::primitive::Transform2D],
+    (Plane => is_plane, read_plane => "plane.read", write_plane => "plane.write") => [crate::primitive::Plane],
+    (Quat => is_quat, read_quat => "quat.read", write_quat => "quat.write") => [crate::primitive::Quat],
+    (Aabb => is_aabb, read_aabb => "aabb.read", write_aabb => "aabb.write") => [crate::primitive::Aabb],
+    (Basis => is_basis, read_basis => "basis.read", write_basis => "basis.write") => [crate::primitive::Basis],
+    (Transform => is_transform, read_transform => "transform.read", write_transform => "transform.write") => [crate::primitive::Transform],
+    (Color => is_color, read_color => "color.read", write_color => "color.write") => [crate::primitive::Color],
 );
 
 typecast_proxy!(
