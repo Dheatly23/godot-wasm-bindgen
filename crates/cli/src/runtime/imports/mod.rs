@@ -1,3 +1,4 @@
+mod array;
 mod other;
 mod primitive;
 mod string;
@@ -24,6 +25,7 @@ pub fn generate_imports(module: &mut Module, runtime: &RuntimeData) -> Result<()
     let mut func_map = HashMap::new();
 
     imports!((module, func_map, runtime) => [
+        array,
         other,
         primitive,
         string,
