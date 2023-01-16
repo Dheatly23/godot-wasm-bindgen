@@ -53,8 +53,9 @@ macro_rules! typeis {
         )*}
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[repr(u8)]
         pub enum ValueType {
-            Null,
+            Null = 0,
             $($vname),*
         }
 
