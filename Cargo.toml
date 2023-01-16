@@ -14,7 +14,5 @@ version = "=0.1.0"
 members = [
   "crates/macro",
   "crates/cli",
-]
-exclude = [
   "example/hello-world",
 ]
