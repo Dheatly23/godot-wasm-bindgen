@@ -6,6 +6,7 @@ use std::mem;
 #[repr(transparent)]
 pub struct GodotValue {
     ptr: u32,
+    phantom: PhantomData<*const u32>,
 }
 
 #[link(wasm_import_module = "godot_wasm")]
@@ -16,9 +17,11 @@ extern "C" {
 
 impl Clone for GodotValue {
     fn clone(&self) -> Self {
-        let ptr = unsafe { duplicate(self.ptr) };
-        debug_assert_ne!(self.ptr, ptr, "Duplicated pointer!");
-        Self { ptr }
+        unsafe {
+            let ptr = duplicate(self.ptr);
+            debug_assert_ne!(self.ptr, ptr, "Duplicated pointer!");
+            Self::from_raw(ptr)
+        }
     }
 }
 
@@ -100,7 +103,10 @@ impl GodotValue {
 
     #[inline]
     pub unsafe fn from_raw(ptr: u32) -> Self {
-        Self { ptr }
+        Self {
+            ptr,
+            phantom: PhantomData,
+        }
     }
 
     #[inline]
@@ -241,9 +247,7 @@ macro_rules! typecast {
 
             impl From<typecast!(@typefrom $($t)*)> for GodotValue {
                 fn from(v: typecast!(@typefrom $($t)*)) -> Self {
-                    Self {
-                        ptr: unsafe { $wfunc(&v.into() as _) },
-                    }
+                    unsafe { Self::from_raw($wfunc(&v.into() as _)) }
                 }
             }
         )*
@@ -393,16 +397,12 @@ impl From<GodotValue> for Option<String> {
 
 impl From<String> for GodotValue {
     fn from(v: String) -> Self {
-        Self {
-            ptr: unsafe { write_string(v.as_ptr(), v.len() as _) },
-        }
+        unsafe { Self::from_raw(write_string(v.as_ptr(), v.len() as _)) }
     }
 }
 
 impl<'a> From<&'a str> for GodotValue {
     fn from(v: &'a str) -> Self {
-        Self {
-            ptr: unsafe { write_string(v.as_ptr(), v.len() as _) },
-        }
+        unsafe { Self::from_raw(write_string(v.as_ptr(), v.len() as _)) }
     }
 }
