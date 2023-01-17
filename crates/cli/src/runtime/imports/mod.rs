@@ -3,6 +3,7 @@ mod other;
 mod pool_array;
 mod primitive;
 mod string;
+mod string_array;
 mod typeis;
 
 use std::collections::HashMap;
@@ -31,6 +32,7 @@ pub fn generate_imports(module: &mut Module, runtime: &RuntimeData) -> Result<()
         pool_array,
         primitive,
         string,
+        string_array,
         typeis,
     ]);
 

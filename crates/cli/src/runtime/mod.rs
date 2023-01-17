@@ -1,13 +1,21 @@
 mod imports;
 
-use anyhow::Error;
+use anyhow::{bail, Error};
 use walrus::ir::{BinaryOp, ExtendedLoad, LoadKind, MemArg, StoreKind, UnaryOp, Value};
-use walrus::{FunctionBuilder, FunctionId, GlobalId, InitExpr, MemoryId, Module, TableId, ValType};
+use walrus::{
+    ElementId, ElementKind, Export, ExportItem, FunctionBuilder, FunctionId, GlobalId, InitExpr,
+    MemoryId, Module, TableId, ValType,
+};
 
 #[allow(dead_code)]
 pub struct RuntimeData {
+    pub main_memory: MemoryId,
+
     extern_table: TableId,
     extern_memory: MemoryId,
+    pub declare_funcs: ElementId,
+    pub index_global: GlobalId,
+    pub limit_global: GlobalId,
 
     head_global: GlobalId,
     pub alloc_func: FunctionId,
@@ -16,10 +24,35 @@ pub struct RuntimeData {
 }
 
 pub fn add_runtime(module: &mut Module) -> Result<RuntimeData, Error> {
+    let main_memory = {
+        let mut it = module.exports.iter();
+        loop {
+            if let Some(Export { name, item, .. }) = it.next() {
+                if name != "memory" {
+                    continue;
+                }
+                if let ExportItem::Memory(mem) = item {
+                    break *mem;
+                }
+            } else {
+                bail!("No main memory exported!");
+            }
+        }
+    };
+
     let extern_table = module
         .tables
         .add_local(0, Some(65536), walrus::ValType::Externref);
     let extern_memory = module.memories.add_local(false, 1, None);
+    let declare_funcs = module
+        .elements
+        .add(ElementKind::Declared, ValType::Funcref, Vec::new());
+    let index_global = module
+        .globals
+        .add_local(ValType::I32, true, InitExpr::Value(Value::I32(0)));
+    let limit_global = module
+        .globals
+        .add_local(ValType::I32, true, InitExpr::Value(Value::I32(0)));
     let head_global = module
         .globals
         .add_local(ValType::I32, true, InitExpr::Value(Value::I32(0)));
@@ -205,8 +238,12 @@ pub fn add_runtime(module: &mut Module) -> Result<RuntimeData, Error> {
     };
 
     let runtime = RuntimeData {
+        main_memory,
         extern_table,
         extern_memory,
+        declare_funcs,
+        index_global,
+        limit_global,
 
         head_global,
         alloc_func,
