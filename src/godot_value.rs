@@ -20,9 +20,13 @@ extern "C" {
 impl Clone for GodotValue {
     fn clone(&self) -> Self {
         unsafe {
-            let ptr = duplicate(self.ptr);
-            debug_assert_ne!(self.ptr, ptr, "Duplicated pointer!");
-            Self::from_raw(ptr)
+            if self.ptr != 0 {
+                let ptr = duplicate(self.ptr);
+                debug_assert_ne!(self.ptr, ptr, "Duplicated pointer!");
+                Self::from_raw(ptr)
+            } else {
+                Self::from_raw(0)
+            }
         }
     }
 }
