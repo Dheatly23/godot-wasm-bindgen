@@ -1,3 +1,6 @@
+use std::iter::FusedIterator;
+use std::ops::Range;
+
 use crate::godot_value::{GodotValue, TypecastError, ValueType};
 
 #[derive(Debug, Clone)]
@@ -174,6 +177,103 @@ impl GodotArray {
         for i in 0..l {
             ret.push(self.get(i))
         }
+        ret
+    }
+
+    pub fn from_slice(s: &[GodotValue]) -> Self {
+        let ret = Self::new();
+        for i in s {
+            ret.push(i);
+        }
+        ret
+    }
+
+    #[inline]
+    pub fn slice_iter(&self, start: usize, end: usize) -> Iter<'_> {
+        Iter {
+            array: self,
+            range: start..end,
+        }
+    }
+}
+
+pub struct Iter<'a> {
+    array: &'a GodotArray,
+    range: Range<usize>,
+}
+
+impl<'a> IntoIterator for &'a GodotArray {
+    type Item = GodotValue;
+    type IntoIter = Iter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Iter {
+            array: self,
+            range: 0..self.len(),
+        }
+    }
+}
+
+impl<'a> Iterator for Iter<'a> {
+    type Item = GodotValue;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.range.next() {
+            Some(i) => Some(self.array.get(i)),
+            None => None,
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.range.size_hint()
+    }
+}
+
+impl<'a> ExactSizeIterator for Iter<'a> {
+    fn len(&self) -> usize {
+        self.range.len()
+    }
+}
+
+impl<'a> DoubleEndedIterator for Iter<'a> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        match self.range.next_back() {
+            Some(i) => Some(self.array.get(i)),
+            None => None,
+        }
+    }
+}
+
+impl<'a> FusedIterator for Iter<'a> {}
+
+impl Extend<GodotValue> for GodotArray {
+    fn extend<T: IntoIterator<Item = GodotValue>>(&mut self, iter: T) {
+        for i in iter {
+            self.push(&i);
+        }
+    }
+}
+
+impl<'a> Extend<&'a GodotValue> for GodotArray {
+    fn extend<T: IntoIterator<Item = &'a GodotValue>>(&mut self, iter: T) {
+        for i in iter {
+            self.push(i);
+        }
+    }
+}
+
+impl FromIterator<GodotValue> for GodotArray {
+    fn from_iter<T: IntoIterator<Item = GodotValue>>(iter: T) -> Self {
+        let mut ret = Self::new();
+        ret.extend(iter);
+        ret
+    }
+}
+
+impl<'a> FromIterator<&'a GodotValue> for GodotArray {
+    fn from_iter<T: IntoIterator<Item = &'a GodotValue>>(iter: T) -> Self {
+        let mut ret = Self::new();
+        ret.extend(iter);
         ret
     }
 }
