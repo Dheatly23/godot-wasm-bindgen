@@ -9,6 +9,8 @@ pub struct GodotValue {
     phantom: PhantomData<*const u32>,
 }
 
+assert_not_impl_any!(GodotValue: Send, Sync);
+
 #[link(wasm_import_module = "godot_wasm")]
 extern "C" {
     fn duplicate(ptr: u32) -> u32;
@@ -408,7 +410,7 @@ impl<'a> From<&'a str> for GodotValue {
 }
 
 macro_rules! typecast_pool {
-    ($($t:ty => [
+    ($($t:ty : $l:literal => [
         $vname:ident => $ifunc:ident,
         $lfunc:ident => $lname:literal,
         $rfunc:ident => $rname:literal,
@@ -425,6 +427,8 @@ macro_rules! typecast_pool {
         )*}
 
         $(
+            assert_eq_size!($t, [u8; $l]);
+
             impl TryFrom<&'_ GodotValue> for Vec<$t> {
                 type Error = TypecastError;
 
@@ -487,37 +491,37 @@ macro_rules! typecast_pool {
 }
 
 typecast_pool!(
-    u8 => [
+    u8: 1 => [
         ByteArray => is_byte_array,
         len_byte_array => "byte_array.len",
         read_byte_array => "byte_array.read",
         write_byte_array => "byte_array.write"
     ],
-    u32 => [
+    u32: 4 => [
         IntArray => is_int_array,
         len_int_array => "int_array.len",
         read_int_array => "int_array.read",
         write_int_array => "int_array.write"
     ],
-    f32 => [
+    f32: 4 => [
         FloatArray => is_float_array,
         len_float_array => "float_array.len",
         read_float_array => "float_array.read",
         write_float_array => "float_array.write"
     ],
-    crate::primitive::Vector2 => [
+    crate::primitive::Vector2: 8 => [
         Vector2Array => is_vector2_array,
         len_vector2_array => "vector2_array.len",
         read_vector2_array => "vector2_array.read",
         write_vector2_array => "vector2_array.write"
     ],
-    crate::primitive::Vector3 => [
+    crate::primitive::Vector3: 12 => [
         Vector3Array => is_vector3_array,
         len_vector3_array => "vector3_array.len",
         read_vector3_array => "vector3_array.read",
         write_vector3_array => "vector3_array.write"
     ],
-    crate::primitive::Color => [
+    crate::primitive::Color: 16 => [
         ColorArray => is_color_array,
         len_color_array => "color_array.len",
         read_color_array => "color_array.read",

@@ -5,6 +5,9 @@ edition = "2021"
 authors = ["Dheatly23 <71598333+Dheatly23@users.noreply.github.com>"]
 license = "Apache-2.0"
 
+[dependencies]
+static_assertions = "^1.1.0"
+
 [dependencies.godot-wasm-bindgen-macro]
 path = "crates/macro"
 version = "=0.1.0"
