@@ -406,3 +406,121 @@ impl<'a> From<&'a str> for GodotValue {
         unsafe { Self::from_raw(write_string(v.as_ptr(), v.len() as _)) }
     }
 }
+
+macro_rules! typecast_pool {
+    ($($t:ty => [
+        $vname:ident => $ifunc:ident,
+        $lfunc:ident => $lname:literal,
+        $rfunc:ident => $rname:literal,
+        $wfunc:ident => $wname:literal
+    ]),* $(,)?) => {
+        #[link(wasm_import_module = "godot_wasm")]
+        extern "C" {$(
+            #[link_name = $lname]
+            fn $lfunc(id: u32) -> u32;
+            #[link_name = $rname]
+            fn $rfunc(id: u32, ptr: *mut $t) -> u32;
+            #[link_name = $wname]
+            fn $wfunc(ptr: *const $t, n: u32) -> u32;
+        )*}
+
+        $(
+            impl TryFrom<&'_ GodotValue> for Vec<$t> {
+                type Error = TypecastError;
+
+                fn try_from(v: &GodotValue) -> Result<Self, Self::Error> {
+                    if v.ptr == 0 {
+                        Err(TypecastError::new(ValueType::$vname))
+                    } else if !v.$ifunc() {
+                        Err(TypecastError::new(ValueType::$vname))
+                    } else {
+                        let len = unsafe { $lfunc(v.ptr) as _};
+                        let mut ret = vec![<$t>::default(); len];
+
+                        let v = unsafe { $rfunc(v.ptr, ret.as_mut_ptr()) };
+                        debug_assert_ne!(v, 0, "Read operation failed");
+
+                        match v {
+                            0 => Err(TypecastError::new(ValueType::$vname)),
+                            _ => Ok(ret),
+                        }
+                    }
+                }
+            }
+
+            impl TryFrom<GodotValue> for Vec<$t> {
+                type Error = TypecastError;
+
+                #[inline]
+                fn try_from(v: GodotValue) -> Result<Self, Self::Error> {
+                    Self::try_from(&v)
+                }
+            }
+
+            impl From<&'_ GodotValue> for Option<Vec<$t>> {
+                #[inline]
+                fn from(v: &GodotValue) -> Self {
+                    v.try_into().ok()
+                }
+            }
+
+            impl From<GodotValue> for Option<Vec<$t>> {
+                #[inline]
+                fn from(v: GodotValue) -> Self {
+                    v.try_into().ok()
+                }
+            }
+
+            impl From<Vec<$t>> for GodotValue {
+                fn from(v: Vec<$t>) -> Self {
+                    unsafe { Self::from_raw($wfunc(v.as_ptr(), v.len() as _)) }
+                }
+            }
+
+            impl From<&[$t]> for GodotValue {
+                fn from(v: &[$t]) -> Self {
+                    unsafe { Self::from_raw($wfunc(v.as_ptr(), v.len() as _)) }
+                }
+            }
+        )*
+    };
+}
+
+typecast_pool!(
+    u8 => [
+        ByteArray => is_byte_array,
+        len_byte_array => "byte_array.len",
+        read_byte_array => "byte_array.read",
+        write_byte_array => "byte_array.write"
+    ],
+    u32 => [
+        IntArray => is_int_array,
+        len_int_array => "int_array.len",
+        read_int_array => "int_array.read",
+        write_int_array => "int_array.write"
+    ],
+    f32 => [
+        FloatArray => is_float_array,
+        len_float_array => "float_array.len",
+        read_float_array => "float_array.read",
+        write_float_array => "float_array.write"
+    ],
+    crate::primitive::Vector2 => [
+        Vector2Array => is_vector2_array,
+        len_vector2_array => "vector2_array.len",
+        read_vector2_array => "vector2_array.read",
+        write_vector2_array => "vector2_array.write"
+    ],
+    crate::primitive::Vector3 => [
+        Vector3Array => is_vector3_array,
+        len_vector3_array => "vector3_array.len",
+        read_vector3_array => "vector3_array.read",
+        write_vector3_array => "vector3_array.write"
+    ],
+    crate::primitive::Color => [
+        ColorArray => is_color_array,
+        len_color_array => "color_array.len",
+        read_color_array => "color_array.read",
+        write_color_array => "color_array.write"
+    ],
+);

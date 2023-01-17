@@ -1,5 +1,6 @@
 mod array;
 mod other;
+mod pool_array;
 mod primitive;
 mod string;
 mod typeis;
@@ -27,6 +28,7 @@ pub fn generate_imports(module: &mut Module, runtime: &RuntimeData) -> Result<()
     imports!((module, func_map, runtime) => [
         array,
         other,
+        pool_array,
         primitive,
         string,
         typeis,
