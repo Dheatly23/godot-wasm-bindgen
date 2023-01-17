@@ -318,5 +318,214 @@ pub fn generate_imports(
         Ok(builder.finish(vec![i], &mut module.funcs))
     })?;
 
+    replace_import(&mut *module, &mut *func_map, "array.remove", |module| {
+        let ty = module.types.add(&[ValType::Externref, ValType::I32], &[]);
+        let (import_func, _) = module.add_import_func(EXTERNREF_MODULE, "array.remove", ty);
+        let mut builder =
+            FunctionBuilder::new(&mut module.types, &[ValType::I32, ValType::I32], &[]);
+
+        builder.name(String::from("godot_wasm.array.remove"));
+
+        let RuntimeData { get_func, .. } = *runtime;
+
+        let o = module.locals.add(ValType::I32);
+        let i = module.locals.add(ValType::I32);
+
+        builder
+            .func_body()
+            .local_get(o)
+            .call(get_func)
+            .local_get(i)
+            .call(import_func);
+
+        Ok(builder.finish(vec![o, i], &mut module.funcs))
+    })?;
+
+    replace_import(&mut *module, &mut *func_map, "array.erase", |module| {
+        let ty = module
+            .types
+            .add(&[ValType::Externref, ValType::Externref], &[]);
+        let (import_func, _) = module.add_import_func(EXTERNREF_MODULE, "array.erase", ty);
+        let mut builder =
+            FunctionBuilder::new(&mut module.types, &[ValType::I32, ValType::I32], &[]);
+
+        builder.name(String::from("godot_wasm.array.erase"));
+
+        let RuntimeData { get_func, .. } = *runtime;
+
+        let o = module.locals.add(ValType::I32);
+        let v = module.locals.add(ValType::I32);
+
+        builder
+            .func_body()
+            .local_get(o)
+            .call(get_func)
+            .local_get(v)
+            .call(get_func)
+            .call(import_func);
+
+        Ok(builder.finish(vec![o, v], &mut module.funcs))
+    })?;
+
+    replace_import(&mut *module, &mut *func_map, "array.resize", |module| {
+        let ty = module.types.add(&[ValType::Externref, ValType::I32], &[]);
+        let (import_func, _) = module.add_import_func(EXTERNREF_MODULE, "array.resize", ty);
+        let mut builder =
+            FunctionBuilder::new(&mut module.types, &[ValType::I32, ValType::I32], &[]);
+
+        builder.name(String::from("godot_wasm.array.resize"));
+
+        let RuntimeData { get_func, .. } = *runtime;
+
+        let o = module.locals.add(ValType::I32);
+        let i = module.locals.add(ValType::I32);
+
+        builder
+            .func_body()
+            .local_get(o)
+            .call(get_func)
+            .local_get(i)
+            .call(import_func);
+
+        Ok(builder.finish(vec![o, i], &mut module.funcs))
+    })?;
+
+    replace_import(&mut *module, &mut *func_map, "array.push", |module| {
+        let ty = module
+            .types
+            .add(&[ValType::Externref, ValType::Externref], &[]);
+        let (import_func, _) = module.add_import_func(EXTERNREF_MODULE, "array.push", ty);
+        let mut builder =
+            FunctionBuilder::new(&mut module.types, &[ValType::I32, ValType::I32], &[]);
+
+        builder.name(String::from("godot_wasm.array.push"));
+
+        let RuntimeData { get_func, .. } = *runtime;
+
+        let o = module.locals.add(ValType::I32);
+        let v = module.locals.add(ValType::I32);
+
+        builder
+            .func_body()
+            .local_get(o)
+            .call(get_func)
+            .local_get(v)
+            .call(get_func)
+            .call(import_func);
+
+        Ok(builder.finish(vec![o, v], &mut module.funcs))
+    })?;
+
+    replace_import(&mut *module, &mut *func_map, "array.pop", |module| {
+        let ty = module
+            .types
+            .add(&[ValType::Externref], &[ValType::Externref]);
+        let (import_func, _) = module.add_import_func(EXTERNREF_MODULE, "array.pop", ty);
+        let mut builder = FunctionBuilder::new(&mut module.types, &[ValType::I32], &[ValType::I32]);
+
+        builder.name(String::from("godot_wasm.array.pop"));
+
+        let RuntimeData {
+            get_func,
+            alloc_func,
+            ..
+        } = *runtime;
+
+        let o = module.locals.add(ValType::I32);
+
+        builder
+            .func_body()
+            .local_get(o)
+            .call(get_func)
+            .call(import_func)
+            .call(alloc_func);
+
+        Ok(builder.finish(vec![o], &mut module.funcs))
+    })?;
+
+    replace_import(&mut *module, &mut *func_map, "array.push_front", |module| {
+        let ty = module
+            .types
+            .add(&[ValType::Externref, ValType::Externref], &[]);
+        let (import_func, _) = module.add_import_func(EXTERNREF_MODULE, "array.push_front", ty);
+        let mut builder =
+            FunctionBuilder::new(&mut module.types, &[ValType::I32, ValType::I32], &[]);
+
+        builder.name(String::from("godot_wasm.array.push_front"));
+
+        let RuntimeData { get_func, .. } = *runtime;
+
+        let o = module.locals.add(ValType::I32);
+        let v = module.locals.add(ValType::I32);
+
+        builder
+            .func_body()
+            .local_get(o)
+            .call(get_func)
+            .local_get(v)
+            .call(get_func)
+            .call(import_func);
+
+        Ok(builder.finish(vec![o, v], &mut module.funcs))
+    })?;
+
+    replace_import(&mut *module, &mut *func_map, "array.pop_front", |module| {
+        let ty = module
+            .types
+            .add(&[ValType::Externref], &[ValType::Externref]);
+        let (import_func, _) = module.add_import_func(EXTERNREF_MODULE, "array.pop_front", ty);
+        let mut builder = FunctionBuilder::new(&mut module.types, &[ValType::I32], &[ValType::I32]);
+
+        builder.name(String::from("godot_wasm.array.pop_front"));
+
+        let RuntimeData {
+            get_func,
+            alloc_func,
+            ..
+        } = *runtime;
+
+        let o = module.locals.add(ValType::I32);
+
+        builder
+            .func_body()
+            .local_get(o)
+            .call(get_func)
+            .call(import_func)
+            .call(alloc_func);
+
+        Ok(builder.finish(vec![o], &mut module.funcs))
+    })?;
+
+    replace_import(&mut *module, &mut *func_map, "array.insert", |module| {
+        let ty = module
+            .types
+            .add(&[ValType::Externref, ValType::I32, ValType::Externref], &[]);
+        let (import_func, _) = module.add_import_func(EXTERNREF_MODULE, "array.insert", ty);
+        let mut builder = FunctionBuilder::new(
+            &mut module.types,
+            &[ValType::I32, ValType::I32, ValType::I32],
+            &[],
+        );
+
+        builder.name(String::from("godot_wasm.array.insert"));
+
+        let RuntimeData { get_func, .. } = *runtime;
+
+        let o = module.locals.add(ValType::I32);
+        let i = module.locals.add(ValType::I32);
+        let v = module.locals.add(ValType::I32);
+
+        builder
+            .func_body()
+            .local_get(o)
+            .call(get_func)
+            .local_get(i)
+            .local_get(v)
+            .call(get_func)
+            .call(import_func);
+
+        Ok(builder.finish(vec![o, i, v], &mut module.funcs))
+    })?;
+
     Ok(())
 }
