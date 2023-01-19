@@ -43,7 +43,7 @@ pub fn generate_imports(
             &[ValType::I32],
         );
 
-        builder.name(String::from("godot_wasm.string.read"));
+        builder.name(String::from("godot_wasm.string.get"));
 
         let RuntimeData {
             get_func,
