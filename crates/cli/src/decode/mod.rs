@@ -1,5 +1,6 @@
+mod parser;
+
 use std::borrow::Cow;
-use std::io::Read;
 
 use anyhow::{bail, Error};
 use walrus::{CustomSection, Module, TypedCustomSectionId};
@@ -23,31 +24,11 @@ pub struct Symbol {
 impl TryFrom<&[u8]> for GodotWasmBindgenData {
     type Error = Error;
 
-    fn try_from(mut bytes: &[u8]) -> Result<Self, Error> {
-        let mut symbols = Vec::new();
-
-        while bytes.len() > 0 {
-            let mut version = [0u8; 4];
-            bytes.read_exact(&mut version)?;
-
-            symbols.push(read_tagged(&mut bytes, |mut b| {
-                let name = read_tagged(&mut b, |b| {
-                    let mut ret = Vec::new();
-                    b.read_to_end(&mut ret)?;
-                    Ok(String::from_utf8(ret)?)
-                })?;
-                let mut extra_data = Vec::new();
-                b.read_to_end(&mut extra_data)?;
-
-                Ok(Symbol {
-                    version,
-                    name,
-                    extra_data,
-                })
-            })?);
+    fn try_from(bytes: &[u8]) -> Result<Self, Error> {
+        match parser::parse_bindgen_data(bytes) {
+            Ok((_, ret)) => Ok(ret),
+            Err(e) => bail!("{}", e),
         }
-
-        Ok(Self { symbols })
     }
 }
 
@@ -95,28 +76,11 @@ pub struct Feature {
 impl TryFrom<&[u8]> for TargetFeatures {
     type Error = Error;
 
-    fn try_from(mut bytes: &[u8]) -> Result<Self, Error> {
-        let mut features = Vec::new();
-
-        for _ in 0..leb128::read::unsigned(&mut bytes)? {
-            let mut b = [0u8; 1];
-            bytes.read_exact(&mut b)?;
-
-            let enabled = match b[0] {
-                43 => true,
-                45 => false,
-                v => bail!("Unknown flag {}", char::from_u32(v.into()).unwrap_or('?')),
-            };
-            let name = read_tagged(&mut bytes, |r| {
-                let mut ret = Vec::new();
-                r.read_to_end(&mut ret)?;
-                Ok(String::from_utf8(ret)?)
-            })?;
-
-            features.push(Feature { enabled, name });
+    fn try_from(bytes: &[u8]) -> Result<Self, Error> {
+        match parser::parse_target_features(bytes) {
+            Ok((_, ret)) => Ok(ret),
+            Err(e) => bail!("{}", e),
         }
-
-        Ok(Self { features })
     }
 }
 
