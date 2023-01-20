@@ -452,8 +452,8 @@ impl_binop!(
             y: a.y * b,
         },
         [Vector2, Transform2D => Vector2] {
-            x: a.x * (b.a.x + b.b.x) + b.origin.x,
-            y: a.y * (b.a.y + b.b.y) + b.origin.y,
+            x: a.x * b.a.x + a.y * b.b.x + b.origin.x,
+            y: a.x * b.a.y + a.y * b.b.y + b.origin.y,
         },
         [Vector2, Quat => Vector2] {
             let i = b.conjugate();
@@ -472,6 +472,16 @@ impl_binop!(
             x: a.x * b,
             y: a.y * b,
             z: a.z * b,
+        },
+        [Vector3, Basis => Vector3] {
+            x: a.dot(b.elements[0]),
+            y: a.dot(b.elements[1]),
+            z: a.dot(b.elements[2]),
+        },
+        [Vector3, Transform => Vector3] {
+            x: b.basis.elements[0].x * a.x + b.basis.elements[1].x * a.y + b.basis.elements[2].x * a.z + b.origin.x,
+            y: b.basis.elements[0].y * a.x + b.basis.elements[1].y * a.y + b.basis.elements[2].y * a.z + b.origin.y,
+            z: b.basis.elements[0].z * a.x + b.basis.elements[1].z * a.y + b.basis.elements[2].z * a.z + b.origin.z,
         },
         [Rect2, f32 => Rect2] {
             position: a.position * b,
@@ -496,8 +506,8 @@ impl_binop!(
             },
         },
         [Transform2D, Vector2 => Vector2] {
-            x: b.x * (a.a.x + a.b.x) + a.origin.x,
-            y: b.y * (a.a.y + a.b.y) + a.origin.y,
+            x: b.x * a.a.x + b.y * a.b.x + a.origin.x,
+            y: b.x * a.a.y + b.y * a.b.y + a.origin.y,
         },
         [Quat] {
             x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
@@ -516,6 +526,35 @@ impl_binop!(
                 x: w * i.x + x * i.w + y * i.z - z * i.y,
                 y: w * i.y - x * i.z + y * i.w + z * i.x,
             }
+        },
+        [Basis] {
+            elements: [
+                a * b.elements[0],
+                a * b.elements[1],
+                a * b.elements[2],
+            ],
+        },
+        [Basis, Vector3 => Vector3] {
+            x: a.elements[0].x * b.x + a.elements[1].x * b.y + a.elements[2].x * b.z,
+            y: a.elements[0].y * b.x + a.elements[1].y * b.y + a.elements[2].y * b.z,
+            z: a.elements[0].z * b.x + a.elements[1].z * b.y + a.elements[2].z * b.z,
+        },
+        [Basis, Transform => Transform] {
+            basis: a * b.basis,
+            origin: a * b.origin,
+        },
+        [Transform] {
+            basis: a.basis * b.basis,
+            origin: a.basis * b.origin + a.origin,
+        },
+        [Transform, Basis => Transform] {
+            basis: a.basis * b,
+            origin: a.origin,
+        },
+        [Transform, Vector3 => Vector3] {
+            x: a.basis.elements[0].x * b.x + a.basis.elements[1].x * b.y + a.basis.elements[2].x * b.z + a.origin.x,
+            y: a.basis.elements[0].y * b.x + a.basis.elements[1].y * b.y + a.basis.elements[2].y * b.z + a.origin.y,
+            z: a.basis.elements[0].z * b.x + a.basis.elements[1].z * b.y + a.basis.elements[2].z * b.z + a.origin.z,
         },
     ]
 );
