@@ -231,6 +231,10 @@ impl TypecastErrorOwned {
             got,
         }
     }
+
+    pub fn unwrap_original(self) -> GodotValue {
+        self.original
+    }
 }
 
 impl fmt::Display for TypecastErrorOwned {
