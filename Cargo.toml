@@ -15,7 +15,9 @@ version = "=0.1.0"
 
 [workspace]
 members = [
-  "crates/macro",
-  "crates/cli",
-  "example/hello-world",
+  "crates/*",
+  "example/*",
+]
+exclude = [
+  "example/.cargo",
 ]
