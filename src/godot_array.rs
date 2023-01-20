@@ -1,5 +1,5 @@
 use std::iter::FusedIterator;
-use std::ops::Range;
+use std::ops::{Bound, Range, RangeBounds};
 
 use crate::godot_value::{GodotValue, TypecastError, ValueType};
 
@@ -244,12 +244,27 @@ impl GodotArray {
         ret
     }
 
-    #[inline]
-    pub fn slice_iter(&self, start: usize, end: usize) -> Iter<'_> {
-        Iter {
-            array: self,
-            range: start..end,
+    pub fn slice_iter<T>(&self, range: T) -> Iter<'_>
+    where
+        T: RangeBounds<usize>,
+    {
+        let range = Range {
+            start: match range.start_bound() {
+                Bound::Included(&v) => v,
+                Bound::Excluded(&v) => v + 1,
+                Bound::Unbounded => 0,
+            },
+            end: match range.end_bound() {
+                Bound::Included(&v) => v + 1,
+                Bound::Excluded(&v) => v,
+                Bound::Unbounded => self.len(),
+            },
+        };
+        if range.end > self.len() {
+            panic!("Index out of bound! ({} >= {})", range.end, self.len());
         }
+
+        Iter { array: self, range }
     }
 }
 
