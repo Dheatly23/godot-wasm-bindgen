@@ -2,7 +2,7 @@ use std::iter::FusedIterator;
 use std::ops::{Bound, Range};
 use std::{fmt, ops::RangeBounds};
 
-use crate::godot_value::{GodotValue, TypecastError, ValueType};
+use crate::godot_value::{GodotValue, TypecastErrorOwned, ValueType};
 
 #[derive(Debug, Clone)]
 pub struct GodotString {
@@ -83,15 +83,16 @@ impl GodotString {
 }
 
 impl TryFrom<GodotValue> for GodotString {
-    type Error = TypecastError;
+    type Error = TypecastErrorOwned;
 
-    fn try_from(v: GodotValue) -> Result<Self, Self::Error> {
-        if !v.is_string() {
-            Err(TypecastError::new(ValueType::GodotString))
-        } else {
-            let mut ret = Self { value: v, len_: 0 };
-            ret.update_len();
-            Ok(ret)
+    fn try_from(value: GodotValue) -> Result<Self, Self::Error> {
+        match (&value).into() {
+            ValueType::GodotString => {
+                let mut ret = Self { value, len_: 0 };
+                ret.update_len();
+                Ok(ret)
+            }
+            v => Err(Self::Error::new(value, ValueType::GodotString, v)),
         }
     }
 }
@@ -248,15 +249,16 @@ impl StringArray {
 }
 
 impl TryFrom<GodotValue> for StringArray {
-    type Error = TypecastError;
+    type Error = TypecastErrorOwned;
 
-    fn try_from(v: GodotValue) -> Result<Self, Self::Error> {
-        if !v.is_string_array() {
-            Err(TypecastError::new(ValueType::StringArray))
-        } else {
-            let mut ret = Self { value: v, len_: 0 };
-            ret.update_len();
-            Ok(ret)
+    fn try_from(value: GodotValue) -> Result<Self, Self::Error> {
+        match (&value).into() {
+            ValueType::StringArray => {
+                let mut ret = Self { value, len_: 0 };
+                ret.update_len();
+                Ok(ret)
+            }
+            v => Err(Self::Error::new(value, ValueType::GodotString, v)),
         }
     }
 }

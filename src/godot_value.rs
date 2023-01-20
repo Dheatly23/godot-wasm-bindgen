@@ -182,21 +182,68 @@ impl fmt::Debug for NullValueError {
 
 pub struct TypecastError {
     expect: ValueType,
+    got: ValueType,
 }
 
 impl TypecastError {
-    pub(crate) fn new(expect: ValueType) -> Self {
-        Self { expect }
+    pub(crate) fn new(expect: ValueType, got: ValueType) -> Self {
+        Self { expect, got }
     }
 }
 
 impl fmt::Display for TypecastError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Casting error (expected {})", self.expect)
+        write!(
+            f,
+            "Casting error (expected {}, got {})",
+            self.expect, self.got
+        )
     }
 }
 
 impl fmt::Debug for TypecastError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        <Self as fmt::Display>::fmt(self, f)
+    }
+}
+
+pub struct TypecastErrorOwned {
+    pub original: GodotValue,
+
+    expect: ValueType,
+    got: ValueType,
+}
+
+impl TypecastErrorOwned {
+    pub(crate) fn new(original: GodotValue, expect: ValueType, got: ValueType) -> Self {
+        Self {
+            original,
+            expect,
+            got,
+        }
+    }
+
+    pub(crate) fn from_typecast_error(original: GodotValue, error: TypecastError) -> Self {
+        let TypecastError { expect, got } = error;
+        Self {
+            original,
+            expect,
+            got,
+        }
+    }
+}
+
+impl fmt::Display for TypecastErrorOwned {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Casting error (expected {}, got {})",
+            self.expect, self.got
+        )
+    }
+}
+
+impl fmt::Debug for TypecastErrorOwned {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         <Self as fmt::Display>::fmt(self, f)
     }
@@ -221,30 +268,26 @@ macro_rules! typecast {
                 type Error = TypecastError;
 
                 fn try_from(v: &GodotValue) -> Result<Self, Self::Error> {
-                    if v.ptr == 0 {
-                        Err(TypecastError::new(ValueType::$vname))
-                    } else if !v.$ifunc() {
-                        Err(TypecastError::new(ValueType::$vname))
-                    } else {
-                        let mut ret = <typecast!(@typeto $($t)*)>::default();
+                    match v.into() {
+                        ValueType::$vname => {
+                            let mut ret = <typecast!(@typeto $($t)*)>::default();
 
-                        let v = unsafe { $rfunc(v.ptr, &mut ret as _) };
-                        debug_assert_ne!(v, 0, "Read operation failed");
+                            let v = unsafe { $rfunc(v.ptr, &mut ret as _) };
+                            debug_assert_ne!(v, 0, "Read operation failed");
 
-                        match v {
-                            0 => Err(TypecastError::new(ValueType::$vname)),
-                            _ => Ok(ret.into()),
-                        }
+                            Ok(ret.into())
+                        },
+                        v => Err(TypecastError::new(ValueType::$vname, v)),
                     }
                 }
             }
 
             impl TryFrom<GodotValue> for typecast!(@typefrom $($t)*) {
-                type Error = TypecastError;
+                type Error = TypecastErrorOwned;
 
                 #[inline]
                 fn try_from(v: GodotValue) -> Result<Self, Self::Error> {
-                    Self::try_from(&v)
+                    Self::try_from(&v).map_err(|e| Self::Error::from_typecast_error(v, e))
                 }
             }
 
@@ -282,10 +325,10 @@ macro_rules! typecast_proxy {
         }
 
         impl TryFrom<GodotValue> for $to {
-            type Error = TypecastError;
+            type Error = TypecastErrorOwned;
 
             fn try_from(v: GodotValue) -> Result<Self, Self::Error> {
-                Self::try_from(&v)
+                <$from>::try_from(v).map(|v| v as _)
             }
         }
 
@@ -377,31 +420,27 @@ macro_rules! typecast_pool {
                 type Error = TypecastError;
 
                 fn try_from(v: &GodotValue) -> Result<Self, Self::Error> {
-                    if v.ptr == 0 {
-                        Err(TypecastError::new(ValueType::$vname))
-                    } else if !v.$ifunc() {
-                        Err(TypecastError::new(ValueType::$vname))
-                    } else {
-                        let len = unsafe { $lfunc(v.ptr) as _};
-                        let mut ret = vec![<$t>::default(); len];
+                    match v.into() {
+                        ValueType::$vname => {
+                            let len = unsafe { $lfunc(v.ptr) as _};
+                            let mut ret = vec![<$t>::default(); len];
 
-                        let v = unsafe { $rfunc(v.ptr, ret.as_mut_ptr()) };
-                        debug_assert_ne!(v, 0, "Read operation failed");
+                            let v = unsafe { $rfunc(v.ptr, ret.as_mut_ptr()) };
+                            debug_assert_ne!(v, 0, "Read operation failed");
 
-                        match v {
-                            0 => Err(TypecastError::new(ValueType::$vname)),
-                            _ => Ok(ret),
-                        }
+                            Ok(ret.into())
+                        },
+                        v => Err(TypecastError::new(ValueType::$vname, v)),
                     }
                 }
             }
 
             impl TryFrom<GodotValue> for Vec<$t> {
-                type Error = TypecastError;
+                type Error = TypecastErrorOwned;
 
                 #[inline]
                 fn try_from(v: GodotValue) -> Result<Self, Self::Error> {
-                    Self::try_from(&v)
+                    Self::try_from(&v).map_err(|e| Self::Error::from_typecast_error(v, e))
                 }
             }
 

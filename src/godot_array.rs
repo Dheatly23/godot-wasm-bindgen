@@ -1,7 +1,7 @@
 use std::iter::FusedIterator;
 use std::ops::{Bound, Range, RangeBounds};
 
-use crate::godot_value::{GodotValue, TypecastError, ValueType};
+use crate::godot_value::{GodotValue, TypecastErrorOwned, ValueType};
 
 #[derive(Debug, Clone)]
 pub struct GodotArray {
@@ -11,15 +11,16 @@ pub struct GodotArray {
 }
 
 impl TryFrom<GodotValue> for GodotArray {
-    type Error = TypecastError;
+    type Error = TypecastErrorOwned;
 
-    fn try_from(value: GodotValue) -> Result<Self, TypecastError> {
-        if value.is_array() {
-            let mut ret = Self { value, len_: 0 };
-            ret.update_len();
-            Ok(ret)
-        } else {
-            Err(TypecastError::new(ValueType::Array))
+    fn try_from(value: GodotValue) -> Result<Self, Self::Error> {
+        match (&value).into() {
+            ValueType::Array => {
+                let mut ret = Self { value, len_: 0 };
+                ret.update_len();
+                Ok(ret)
+            }
+            v => Err(Self::Error::new(value, ValueType::Array, v)),
         }
     }
 }
