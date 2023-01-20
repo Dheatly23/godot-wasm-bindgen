@@ -231,18 +231,18 @@ impl fmt::Display for Color {
 }
 
 macro_rules! impl_binop {
-    (@type $a:ident $b:ident $arg:ident $f:ident) => { $a.$arg.$f($b.$arg) };
-    (@type $a:ident $b:ident $arg:ident $f:ident $e:expr) => { $e };
-    (@ret { $($arg:ident : $e:expr),* $(,)? }) => {
+    (@type $a:ident $b:ident $f:ident $arg:ident) => { $a.$arg.$f($b.$arg) };
+    (@type $a:ident $b:ident $f:ident $arg:ident $e:expr) => { $e };
+    (@ret $a:ident $b:ident $f:ident { $($arg:ident $(: $e:expr)?),* $(,)? }) => {
         Self::Output {$(
-            $arg : $e,
+            $arg : impl_binop!(@type $a $b $f $arg $($e)?),
         )*}
     };
-    (@ret $e:expr) => { $e };
+    (@ret $a:ident $b:ident $f:ident $e:expr) => { $e };
     (<$f:ident ($a:ident, $b:ident) : $i:ident> : []) => {};
     (
         <$f:ident ($a:ident, $b:ident) : $i:ident $(,)?> :
-        [[$t:ty] { $($arg:ident $(: $e:expr)?),* $(,)? } $(,)?]
+        [[$t:ty] $args:tt $(,)?]
     ) => {
         impl $i<$t> for $t {
             type Output = Self;
@@ -250,9 +250,7 @@ macro_rules! impl_binop {
             fn $f(self, other: Self) -> Self {
                 let $a = self;
                 let $b = other;
-                Self {$(
-                    $arg : impl_binop!(@type $a $b $arg $f $($e)?),
-                )*}
+                impl_binop!(@ret $a $b $f $args)
             }
         }
 
@@ -262,9 +260,7 @@ macro_rules! impl_binop {
             fn $f(self, other: &'a Self) -> Self {
                 let $a = self;
                 let $b = other;
-                Self {$(
-                    $arg : impl_binop!(@type $a $b $arg $f $($e)?),
-                )*}
+                impl_binop!(@ret $a $b $f $args)
             }
         }
 
@@ -274,9 +270,7 @@ macro_rules! impl_binop {
             fn $f(self, other: $t) -> Self::Output {
                 let $a = self;
                 let $b = other;
-                Self::Output {$(
-                    $arg : impl_binop!(@type $a $b $arg $f $($e)?),
-                )*}
+                impl_binop!(@ret $a $b $f $args)
             }
         }
 
@@ -286,9 +280,7 @@ macro_rules! impl_binop {
             fn $f(self, other: &'a $t) -> Self::Output {
                 let $a = self;
                 let $b = other;
-                Self::Output {$(
-                    $arg : impl_binop!(@type $a $b $arg $f $($e)?),
-                )*}
+                impl_binop!(@ret $a $b $f $args)
             }
         }
     };
@@ -302,7 +294,7 @@ macro_rules! impl_binop {
             fn $f(self, other: Self) -> Self::Output {
                 let $a = self;
                 let $b = other;
-                impl_binop!(@ret $args)
+                impl_binop!(@ret $a $b $f $args)
             }
         }
 
@@ -312,7 +304,7 @@ macro_rules! impl_binop {
             fn $f(self, other: &'a Self) -> Self::Output {
                 let $a = self;
                 let $b = other;
-                impl_binop!(@ret $args)
+                impl_binop!(@ret $a $b $f $args)
             }
         }
 
@@ -322,7 +314,7 @@ macro_rules! impl_binop {
             fn $f(self, other: $t) -> Self::Output {
                 let $a = self;
                 let $b = other;
-                impl_binop!(@ret $args)
+                impl_binop!(@ret $a $b $f $args)
             }
         }
 
@@ -332,7 +324,7 @@ macro_rules! impl_binop {
             fn $f(self, other: &'a $t) -> Self::Output {
                 let $a = self;
                 let $b = other;
-                impl_binop!(@ret $args)
+                impl_binop!(@ret $a $b $f $args)
             }
         }
     };
@@ -346,7 +338,7 @@ macro_rules! impl_binop {
             fn $f(self, other: $t2) -> Self::Output {
                 let $a = self;
                 let $b = other;
-                impl_binop!(@ret $args)
+                impl_binop!(@ret $a $b $f $args)
             }
         }
 
@@ -356,7 +348,7 @@ macro_rules! impl_binop {
             fn $f(self, other: &'a $t2) -> Self::Output {
                 let $a = self;
                 let $b = other;
-                impl_binop!(@ret $args)
+                impl_binop!(@ret $a $b $f $args)
             }
         }
 
@@ -366,7 +358,7 @@ macro_rules! impl_binop {
             fn $f(self, other: $t2) -> Self::Output {
                 let $a = self;
                 let $b = other;
-                impl_binop!(@ret $args)
+                impl_binop!(@ret $a $b $f $args)
             }
         }
 
@@ -376,7 +368,7 @@ macro_rules! impl_binop {
             fn $f(self, other: &'a $t2) -> Self::Output {
                 let $a = self;
                 let $b = other;
-                impl_binop!(@ret $args)
+                impl_binop!(@ret $a $b $f $args)
             }
         }
     };
@@ -399,14 +391,30 @@ impl_binop!(
             x: a.x + b,
             y: a.y + b,
         },
+        [Vector2, Rect2 => Rect2] {
+            position: b.position + a,
+            size: b.size + a,
+        },
         [Vector3] { x, y, z },
         [Vector3, f32 => Vector3] {
             x: a.x + b,
             y: a.y + b,
             z: a.z + b,
         },
+        [Vector3, Aabb => Aabb] {
+            position: b.position + a,
+            size: b.size + a,
+        },
+        [Vector3, Plane => Plane] {
+            normal: b.normal,
+            d: b.normal.dot(a.clone()) + b.d,
+        },
         [Rect2] { position, size },
         [Rect2, f32 => Rect2] {
+            position: a.position + b,
+            size: a.size + b,
+        },
+        [Rect2, Vector2 => Rect2] {
             position: a.position + b,
             size: a.size + b,
         },
@@ -414,6 +422,14 @@ impl_binop!(
         [Aabb, f32 => Aabb] {
             position: a.position + b,
             size: a.size + b,
+        },
+        [Aabb, Vector3 => Aabb] {
+            position: a.position + b,
+            size: a.size + b,
+        },
+        [Plane, Vector3 => Plane] {
+            normal: a.normal,
+            d: a.normal.dot(b.clone()) + a.d,
         },
     ]
 );
@@ -425,19 +441,35 @@ impl_binop!(
             x: a.x - b,
             y: a.y - b,
         },
+        [Vector2, Rect2 => Rect2] {
+            position: b.position - a,
+            size: b.size - a,
+        },
         [Vector3] { x, y, z },
         [Vector3, f32 => Vector3] {
             x: a.x - b,
             y: a.y - b,
             z: a.z - b,
         },
+        [Vector3, Aabb => Aabb] {
+            position: b.position - a,
+            size: b.size - a,
+        },
         [Rect2] { position, size },
         [Rect2, f32 => Rect2] {
             position: a.position - b,
             size: a.size - b,
         },
+        [Rect2, Vector2 => Rect2] {
+            position: a.position - b,
+            size: a.size - b,
+        },
         [Aabb] { position, size },
         [Aabb, f32 => Aabb] {
+            position: a.position - b,
+            size: a.size - b,
+        },
+        [Aabb, Vector3 => Aabb] {
             position: a.position - b,
             size: a.size - b,
         },
@@ -455,16 +487,17 @@ impl_binop!(
             x: a.x * b.a.x + a.y * b.b.x + b.origin.x,
             y: a.x * b.a.y + a.y * b.b.y + b.origin.y,
         },
-        [Vector2, Quat => Vector2] {
+        [Vector3, Quat => Vector3] {
             let i = b.conjugate();
-            let x = b.w * a.x - b.z * a.y;
-            let y = b.w * a.y + b.z * a.x;
-            let z = b.x * a.y - b.y * a.x;
-            let w = -(b.x * a.x + b.y * a.y);
+            let x = b.w * a.x + b.y * a.z - b.z * a.y;
+            let y = b.w * a.y - b.x * a.z + b.z * a.x;
+            let z = b.w * a.z + b.x * a.y - b.y * a.x;
+            let w = -(b.x * a.x + b.y * a.y + b.z * a.z);
 
-            Vector2 {
+            Vector3 {
                 x: w * i.x + x * i.w + y * i.z - z * i.y,
                 y: w * i.y - x * i.z + y * i.w + z * i.x,
+                z: w * i.z + x * i.y - y * i.x + z * i.w,
             }
         },
         [Vector3] { x, y, z },
@@ -515,16 +548,17 @@ impl_binop!(
             z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
             w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
         },
-        [Quat, Vector2 => Vector2] {
+        [Quat, Vector3 => Vector3] {
             let i = a.conjugate();
-            let x = a.w * b.x - a.z * b.y;
-            let y = a.w * b.y + a.z * b.x;
-            let z = a.x * b.y - a.y * b.x;
-            let w = -(a.x * b.x + a.y * b.y);
+            let x = a.w * b.x + a.y * b.z - a.z * b.y;
+            let y = a.w * b.y - a.x * b.z + a.z * b.x;
+            let z = a.w * b.z + a.x * b.y - a.y * b.x;
+            let w = -(a.x * b.x + a.y * b.y + a.z * b.z);
 
-            Vector2 {
+            Vector3 {
                 x: w * i.x + x * i.w + y * i.z - z * i.y,
                 y: w * i.y - x * i.z + y * i.w + z * i.x,
+                z: w * i.z + x * i.y - y * i.x + z * i.w,
             }
         },
         [Basis] {
@@ -572,6 +606,19 @@ impl_binop!(
             y: a.y / b,
             z: a.z / b,
         },
+        [Vector3, Quat => Vector3] {
+            let i = b.conjugate();
+            let x = i.w * a.x + i.y * a.z - i.z * a.y;
+            let y = i.w * a.y - i.x * a.z + i.z * a.x;
+            let z = i.w * a.z + i.x * a.y - i.y * a.x;
+            let w = -(i.x * a.x + i.y * a.y + i.z * a.z);
+
+            Vector3 {
+                x: w * b.x + x * b.w + y * b.z - z * b.y,
+                y: w * b.y - x * b.z + y * b.w + z * b.x,
+                z: w * b.z + x * b.y - y * b.x + z * b.w,
+            }
+        },
         [Rect2, f32 => Rect2] {
             position: a.position / b,
             size: a.size / b,
@@ -579,6 +626,9 @@ impl_binop!(
         [Aabb, f32 => Aabb] {
             position: a.position / b,
             size: a.size / b,
+        },
+        [Quat] {
+            a * b.conjugate()
         },
     ]
 );
@@ -687,6 +737,47 @@ impl Vector3 {
     }
 }
 
+impl Transform2D {
+    pub const IDENTITY: Self = Self {
+        a: Vector2 { x: 1., y: 0. },
+        b: Vector2 { x: 0., y: 1. },
+        origin: Vector2::ZERO,
+    };
+
+    pub fn determinant(self) -> f32 {
+        let Self {
+            a: Vector2 { x: ax, y: ay },
+            b: Vector2 { x: bx, y: by },
+            ..
+        } = self;
+        ax * by - bx * ay
+    }
+
+    pub fn inverse(self) -> Self {
+        let Self {
+            a: Vector2 { x: ax, y: ay },
+            b: Vector2 { x: bx, y: by },
+            origin: Vector2 { x: ox, y: oy },
+        } = self;
+        let det_inv = (ax * by - bx * ay).recip();
+
+        Self {
+            a: Vector2 {
+                x: det_inv * by,
+                y: det_inv * -ay,
+            },
+            b: Vector2 {
+                x: det_inv * -bx,
+                y: det_inv * ax,
+            },
+            origin: Vector2 {
+                x: det_inv * (ox * by + oy * -bx),
+                y: det_inv * (ox * -ay + oy * ax),
+            },
+        }
+    }
+}
+
 impl Quat {
     pub const IDENTITY: Self = Self {
         x: 0.,
@@ -727,6 +818,85 @@ impl Quat {
             y: self.y * l,
             z: self.z * l,
             w: self.w * l,
+        }
+    }
+}
+
+impl Basis {
+    pub const IDENTITY: Self = Self {
+        elements: [
+            Vector3 {
+                x: 1.,
+                y: 0.,
+                z: 0.,
+            },
+            Vector3 {
+                x: 0.,
+                y: 1.,
+                z: 0.,
+            },
+            Vector3 {
+                x: 0.,
+                y: 0.,
+                z: 1.,
+            },
+        ],
+    };
+
+    pub fn determinant(self) -> f32 {
+        let Self {
+            elements:
+                [Vector3 { x: a, y: b, z: c }, Vector3 { x: d, y: e, z: f }, Vector3 { x: g, y: h, z: i }],
+        } = self;
+        a * e * i + b * f * g + c * d * h - a * f * h - b * d * i - c * e * g
+    }
+
+    pub fn inverse(self) -> Self {
+        let Self {
+            elements:
+                [Vector3 { x: a, y: b, z: c }, Vector3 { x: d, y: e, z: f }, Vector3 { x: g, y: h, z: i }],
+        } = self;
+        let det_inv =
+            (a * e * i + b * f * g + c * d * h - a * f * h - b * d * i - c * e * g).recip();
+
+        Self {
+            elements: [
+                Vector3 {
+                    x: det_inv * (e * i - f * h),
+                    y: det_inv * (f * g - d * i),
+                    z: det_inv * (d * h - e * g),
+                },
+                Vector3 {
+                    x: det_inv * (c * h - b * i),
+                    y: det_inv * (a * i - c * g),
+                    z: det_inv * (b * g - a * h),
+                },
+                Vector3 {
+                    x: det_inv * (b * f - c * e),
+                    y: det_inv * (c * d - a * f),
+                    z: det_inv * (a * e - b * d),
+                },
+            ],
+        }
+    }
+}
+
+impl Transform {
+    pub const IDENTITY: Self = Self {
+        basis: Basis::IDENTITY,
+        origin: Vector3::ZERO,
+    };
+
+    pub fn determinant(self) -> f32 {
+        self.basis.determinant()
+    }
+
+    pub fn inverse(self) -> Self {
+        let Self { mut basis, origin } = self;
+        basis = basis.inverse();
+        Self {
+            basis,
+            origin: basis * origin,
         }
     }
 }
