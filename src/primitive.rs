@@ -1,5 +1,5 @@
 use std::fmt;
-use std::ops::{Add, Div, Mul, Sub};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 #[repr(C)]
@@ -230,6 +230,72 @@ impl fmt::Display for Color {
     }
 }
 
+macro_rules! impl_unop {
+    (@type $a:ident $f:ident $arg:ident) => { $a.$arg.$f() };
+    (@type $a:ident $f:ident $arg:ident $e:expr) => { $e };
+    (@ret $a:ident $f:ident { $($arg:ident $(: $e:expr)?),* $(,)? }) => {
+        Self::Output {$(
+            $arg : impl_unop!(@type $a $f $arg $($e)?),
+        )*}
+    };
+    (@ret $a:ident $f:ident $e:expr) => { $e };
+    (<$f:ident ($a:ident) : $i:ident> : []) => {};
+    (
+        <$f:ident ($a:ident) : $i:ident $(,)?> :
+        [[$t:ty] $args:tt $(,)?]
+    ) => {
+        impl $i for $t {
+            type Output = Self;
+
+            fn $f(self) -> Self {
+                let $a = self;
+                impl_unop!(@ret $a $f $args)
+            }
+        }
+
+        impl<'a> $i for &'a $t {
+            type Output = $t;
+
+            fn $f(self) -> Self::Output {
+                let $a = self;
+                impl_unop!(@ret $a $f $args)
+            }
+        }
+    };
+    (
+        <$f:ident ($a:ident) : $i:ident $(,)?> :
+        [[$t:ty => $r:ty] $args:tt $(,)?]
+    ) => {
+        impl $i for $t {
+            type Output = $r;
+
+            fn $f(self) -> Self::Output {
+                let $a = self;
+                impl_unop!(@ret $a $f $args)
+            }
+        }
+
+        impl<'a> $i for &'a $t {
+            type Output = $r;
+
+            fn $f(self) -> Self::Output {
+                let $a = self;
+                impl_unop!(@ret $a $f $args)
+            }
+        }
+    };
+    (
+        <$f:ident ($a:ident) : $i:ident> :
+        [
+            [$($t0:tt)*] $args0:tt
+            $(, [ $($t:tt)* ] $args:tt)+ $(,)?
+        ]
+    ) => {
+        impl_unop!(<$f($a): $i>: [[$($t0)*] $args0]);
+        $(impl_unop!(<$f($a): $i>: [[$($t)*] $args]);)+
+    };
+}
+
 macro_rules! impl_binop {
     (@type $a:ident $b:ident $f:ident $arg:ident) => { $a.$arg.$f($b.$arg) };
     (@type $a:ident $b:ident $f:ident $arg:ident $e:expr) => { $e };
@@ -384,6 +450,22 @@ macro_rules! impl_binop {
     };
 }
 
+impl_unop!(
+    <neg(a): Neg> : [
+        [Vector2] { x, y },
+        [Vector3] { x, y, z },
+        [Rect2] {
+            position: -(a.position + a.size),
+            size: a.size,
+        },
+        [Aabb] {
+            position: -(a.position + a.size),
+            size: a.size,
+        },
+        [Plane] { normal, d },
+    ]
+);
+
 impl_binop!(
     <add(a, b): Add> : [
         [Vector2] { x, y },
@@ -407,7 +489,7 @@ impl_binop!(
         },
         [Vector3, Plane => Plane] {
             normal: b.normal,
-            d: b.normal.dot(a.clone()) + b.d,
+            d: a.dot(b.normal) + b.d,
         },
         [Rect2] { position, size },
         [Rect2, f32 => Rect2] {
@@ -429,7 +511,7 @@ impl_binop!(
         },
         [Plane, Vector3 => Plane] {
             normal: a.normal,
-            d: a.normal.dot(b.clone()) + a.d,
+            d: b.dot(a.normal) + a.d,
         },
     ]
 );
@@ -455,6 +537,10 @@ impl_binop!(
             position: b.position - a,
             size: b.size - a,
         },
+        [Vector3, Plane => Plane] {
+            normal: -b.normal,
+            d: -(a.dot(b.normal) + b.d),
+        },
         [Rect2] { position, size },
         [Rect2, f32 => Rect2] {
             position: a.position - b,
@@ -472,6 +558,10 @@ impl_binop!(
         [Aabb, Vector3 => Aabb] {
             position: a.position - b,
             size: a.size - b,
+        },
+        [Plane, Vector3 => Plane] {
+            normal: a.normal,
+            d: a.d - b.dot(a.normal),
         },
     ]
 );
