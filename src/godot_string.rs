@@ -6,6 +6,8 @@ use crate::godot_value::{GodotValue, TypecastError, ValueType};
 #[derive(Debug, Clone)]
 pub struct GodotString {
     value: GodotValue,
+
+    len_: usize,
 }
 
 #[link(wasm_import_module = "godot_wasm")]
@@ -19,8 +21,13 @@ extern "C" {
 }
 
 impl GodotString {
+    #[inline]
+    fn update_len(&mut self) {
+        self.len_ = unsafe { string_len(self.value.to_raw()) as _ }
+    }
+
     pub fn len(&self) -> usize {
-        unsafe { string_len(self.value.to_raw()) as _ }
+        self.len_
     }
 
     pub fn extend_string(&self, s: &mut String) {
@@ -81,7 +88,9 @@ impl TryFrom<GodotValue> for GodotString {
         if !v.is_string() {
             Err(TypecastError::new(ValueType::GodotString))
         } else {
-            Ok(Self { value: v })
+            let mut ret = Self { value: v, len_: 0 };
+            ret.update_len();
+            Ok(ret)
         }
     }
 }
@@ -102,6 +111,7 @@ where
         unsafe {
             Self {
                 value: GodotValue::from_raw(write_string(v.as_ptr(), v.len() as _)),
+                len_: v.len(),
             }
         }
     }
@@ -152,11 +162,17 @@ extern "C" {
 #[derive(Debug, Clone)]
 pub struct StringArray {
     value: GodotValue,
+
+    len_: usize,
 }
 
 impl StringArray {
+    fn update_len(&mut self) {
+        self.len_ = unsafe { string_array_len(self.value.to_raw()) as _ };
+    }
+
     pub fn len(&self) -> usize {
-        unsafe { string_array_len(self.value.to_raw()) as _ }
+        self.len_
     }
 
     pub fn get(&self, ix: usize) -> Option<GodotString> {
@@ -164,11 +180,9 @@ impl StringArray {
             None
         } else {
             // SAFETY: Get string array is always a string type
-            unsafe {
-                Some(GodotString {
-                    value: GodotValue::from_raw(get_string_array(self.value.to_raw(), ix as _)),
-                })
-            }
+            let ret =
+                unsafe { GodotValue::from_raw(get_string_array(self.value.to_raw(), ix as _)) };
+            ret.into()
         }
     }
 
@@ -185,7 +199,7 @@ impl StringArray {
             end: match range.end_bound() {
                 Bound::Included(&v) => v + 1,
                 Bound::Excluded(&v) => v,
-                Bound::Unbounded => 0,
+                Bound::Unbounded => self.len(),
             },
         };
         if range.end > self.len() {
@@ -202,11 +216,7 @@ impl StringArray {
 
             Some(
                 ret.into_iter()
-                    .map(|v| unsafe {
-                        GodotString {
-                            value: GodotValue::from_raw(v),
-                        }
-                    })
+                    .map(|v| unsafe { GodotValue::from_raw(v).try_into().unwrap() })
                     .collect(),
             )
         }
@@ -220,7 +230,9 @@ impl TryFrom<GodotValue> for StringArray {
         if !v.is_string_array() {
             Err(TypecastError::new(ValueType::StringArray))
         } else {
-            Ok(Self { value: v })
+            let mut ret = Self { value: v, len_: 0 };
+            ret.update_len();
+            Ok(ret)
         }
     }
 }
@@ -228,6 +240,27 @@ impl TryFrom<GodotValue> for StringArray {
 impl From<StringArray> for GodotValue {
     fn from(v: StringArray) -> Self {
         v.value
+    }
+}
+
+impl<'a> FromIterator<&'a GodotString> for StringArray {
+    fn from_iter<T: IntoIterator<Item = &'a GodotString>>(it: T) -> Self {
+        // SAFETY: We will drop all value later.
+        let v: Vec<_> = it
+            .into_iter()
+            .map(|v| unsafe { v.value.to_raw() })
+            .collect();
+
+        let ret = unsafe {
+            let r = v.as_ptr_range();
+            // SAFETY: It is always a string array
+            Self {
+                value: GodotValue::from_raw(build_string_array(r.start, r.end)),
+                len_: v.len(),
+            }
+        };
+
+        ret
     }
 }
 
@@ -244,6 +277,7 @@ impl FromIterator<GodotString> for StringArray {
             // SAFETY: It is always a string array
             Self {
                 value: GodotValue::from_raw(build_string_array(r.start, r.end)),
+                len_: v.len(),
             }
         };
 

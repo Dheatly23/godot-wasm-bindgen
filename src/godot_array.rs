@@ -6,6 +6,8 @@ use crate::godot_value::{GodotValue, TypecastError, ValueType};
 #[derive(Debug, Clone)]
 pub struct GodotArray {
     value: GodotValue,
+
+    len_: usize,
 }
 
 impl TryFrom<GodotValue> for GodotArray {
@@ -13,7 +15,9 @@ impl TryFrom<GodotValue> for GodotArray {
 
     fn try_from(value: GodotValue) -> Result<Self, TypecastError> {
         if value.is_array() {
-            Ok(Self { value })
+            let mut ret = Self { value, len_: 0 };
+            ret.update_len();
+            Ok(ret)
         } else {
             Err(TypecastError::new(ValueType::Array))
         }
@@ -22,17 +26,13 @@ impl TryFrom<GodotValue> for GodotArray {
 
 impl From<GodotValue> for Option<GodotArray> {
     fn from(value: GodotValue) -> Self {
-        if value.is_array() {
-            Some(GodotArray { value })
-        } else {
-            None
-        }
+        value.try_into().ok()
     }
 }
 
 impl From<GodotArray> for GodotValue {
     fn from(value: GodotArray) -> Self {
-        let GodotArray { value } = value;
+        let GodotArray { value, .. } = value;
         value
     }
 }
@@ -82,54 +82,105 @@ extern "C" {
 }
 
 impl GodotArray {
+    #[inline]
+    fn update_len(&mut self) {
+        self.len_ = unsafe { array_len(self.value.to_raw()) as _ }
+    }
+
+    #[inline]
+    fn check_len(&self, ix: usize) {
+        if ix >= self.len_ {
+            panic!("Index out of bounds! ({} >= {})", ix, self.len_);
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    #[inline]
+    fn debug_len(&self) {
+        let len = unsafe { array_len(self.value.to_raw()) as _ };
+        debug_assert_eq!(
+            self.len_, len,
+            "Length mismatch! ({} != {})",
+            self.len_, len
+        );
+    }
+
+    #[cfg(not(debug_assertions))]
+    #[inline]
+    fn debug_len(&self) {}
+
     pub fn new() -> Self {
         Self {
             value: unsafe { GodotValue::from_raw(array_new()) },
+            len_: 0,
         }
     }
 
     pub fn len(&self) -> usize {
-        unsafe { array_len(self.value.to_raw()) as _ }
+        self.len_
     }
 
     pub fn get(&self, ix: usize) -> GodotValue {
+        self.check_len(ix);
         unsafe { GodotValue::from_raw(array_get(self.value.to_raw(), ix as _)) }
     }
 
-    pub fn set(&self, ix: usize, v: &GodotValue) {
+    pub fn set(&mut self, ix: usize, v: &GodotValue) {
+        self.check_len(ix);
         unsafe { array_set(self.value.to_raw(), ix as _, v.to_raw()) }
     }
 
-    pub fn insert(&self, ix: usize, v: &GodotValue) {
+    pub fn insert(&mut self, ix: usize, v: &GodotValue) {
+        self.check_len(ix);
         unsafe { array_insert(self.value.to_raw(), ix as _, v.to_raw()) }
+        self.len_ += 1;
+        self.debug_len();
     }
 
-    pub fn remove(&self, ix: usize) {
+    pub fn remove(&mut self, ix: usize) {
+        self.check_len(ix);
         unsafe { array_remove(self.value.to_raw(), ix as _) }
+        self.len_ -= 1;
+        self.debug_len();
     }
 
-    pub fn erase(&self, v: &GodotValue) {
+    pub fn erase(&mut self, v: &GodotValue) {
         unsafe { array_erase(self.value.to_raw(), v.to_raw()) }
+        self.update_len();
     }
 
-    pub fn resize(&self, ix: usize) {
+    pub fn resize(&mut self, ix: usize) {
         unsafe { array_resize(self.value.to_raw(), ix as _) }
+        self.len_ = ix;
+        self.debug_len();
     }
 
-    pub fn push(&self, v: &GodotValue) {
+    pub fn push(&mut self, v: &GodotValue) {
         unsafe { array_push(self.value.to_raw(), v.to_raw()) }
+        self.len_ += 1;
+        self.debug_len();
     }
 
-    pub fn pop(&self) -> GodotValue {
-        unsafe { GodotValue::from_raw(array_pop(self.value.to_raw())) }
+    pub fn pop(&mut self) -> GodotValue {
+        self.check_len(0);
+        let ret = unsafe { GodotValue::from_raw(array_pop(self.value.to_raw())) };
+        self.len_ -= 1;
+        self.debug_len();
+        ret
     }
 
-    pub fn push_front(&self, v: &GodotValue) {
+    pub fn push_front(&mut self, v: &GodotValue) {
         unsafe { array_push_front(self.value.to_raw(), v.to_raw()) }
+        self.len_ += 1;
+        self.debug_len();
     }
 
-    pub fn pop_front(&self) -> GodotValue {
-        unsafe { GodotValue::from_raw(array_pop_front(self.value.to_raw())) }
+    pub fn pop_front(&mut self) -> GodotValue {
+        self.check_len(0);
+        let ret = unsafe { GodotValue::from_raw(array_pop_front(self.value.to_raw())) };
+        self.len_ -= 1;
+        self.debug_len();
+        ret
     }
 
     pub fn count(&self, v: &GodotValue) -> usize {
@@ -141,11 +192,13 @@ impl GodotArray {
     }
 
     pub fn find(&self, v: &GodotValue, from: usize) -> Option<u32> {
+        self.check_len(from);
         let ret = unsafe { array_find(self.value.to_raw(), v.to_raw(), from as _) };
         ret.try_into().ok()
     }
 
     pub fn rfind(&self, v: &GodotValue, from: usize) -> Option<u32> {
+        self.check_len(from);
         let ret = unsafe { array_rfind(self.value.to_raw(), v.to_raw(), from as _) };
         ret.try_into().ok()
     }
@@ -159,12 +212,15 @@ impl GodotArray {
         unsafe {
             Self {
                 value: GodotValue::from_raw(array_duplicate(self.value.to_raw())),
+                len_: self.len_,
             }
         }
     }
 
-    pub fn clear(&self) {
+    pub fn clear(&mut self) {
         unsafe { array_clear(self.value.to_raw()) }
+        self.len_ = 0;
+        self.debug_len();
     }
 
     pub fn sort(&self) {
@@ -181,7 +237,7 @@ impl GodotArray {
     }
 
     pub fn from_slice(s: &[GodotValue]) -> Self {
-        let ret = Self::new();
+        let mut ret = Self::new();
         for i in s {
             ret.push(i);
         }
