@@ -49,6 +49,40 @@ macro_rules! generate {
                 })?;
             )*
 
+            replace_import(&mut *module, &mut *func_map, "variant_type", |module| {
+                let ty = module.types.add(
+                    &[ValType::Externref],
+                    &[ValType::I32],
+                );
+                let (import_func, _) = module.add_import_func(
+                    MODULE_NAME,
+                    "variant_type",
+                    ty,
+                );
+                let mut builder = FunctionBuilder::new(
+                    &mut module.types,
+                    &[ValType::I32],
+                    &[ValType::I32],
+                );
+
+                builder.name(String::from("godot_wasm.variant_type"));
+
+                let RuntimeData {
+                    get_func,
+                    ..
+                } = *runtime;
+
+                let i = module.locals.add(ValType::I32);
+
+                builder
+                    .func_body()
+                    .local_get(i)
+                    .call(get_func)
+                    .call(import_func);
+
+                Ok(builder.finish(vec![i], &mut module.funcs))
+            })?;
+
             Ok(())
         }
     };

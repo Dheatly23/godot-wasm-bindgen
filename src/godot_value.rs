@@ -42,12 +42,16 @@ impl Drop for GodotValue {
 }
 
 macro_rules! typeis {
-    ($(($vname:ident : $ifunc:ident => $iname:literal)),* $(,)?) => {
+    ($(($vname:ident = $vnum:literal : $ifunc:ident => $iname:literal)),* $(,)?) => {
         #[link(wasm_import_module = "godot_wasm")]
-        extern "C" {$(
+        extern "C" {
+            $(
             #[link_name = $iname]
             fn $ifunc(ptr: u32) -> u32;
-        )*}
+            )*
+            #[link_name = "variant_type"]
+            fn variant_type(ptr: u32) -> u32;
+        }
 
         impl GodotValue {$(
             pub fn $ifunc(&self) -> bool {
@@ -65,7 +69,7 @@ macro_rules! typeis {
         #[repr(u8)]
         pub enum ValueType {
             Null = 0,
-            $($vname),*
+            $($vname = $vnum),*
         }
 
         impl fmt::Display for ValueType {
@@ -79,9 +83,16 @@ macro_rules! typeis {
 
         impl<'a> From<&'a GodotValue> for ValueType {
             fn from(v: &'a GodotValue) -> Self {
-                if v.is_null() { Self::Null }
-                $( else if v.$ifunc() { Self::$vname } )*
-                else { panic!("Unknown value!") }
+                if v.is_null() {
+                    return Self::Null;
+                }
+
+                let v = unsafe { variant_type(v.ptr) };
+                match v {
+                    0 => Self::Null,
+                    $( $vnum => Self::$vname, )*
+                    _ => unreachable!("Invalid number"),
+                }
             }
         }
 
@@ -127,32 +138,32 @@ impl GodotValue {
 }
 
 typeis!(
-    (Bool: is_bool => "bool.is"),
-    (I64: is_int => "int.is"),
-    (F64: is_float => "float.is"),
-    (GodotString: is_string => "string.is"),
-    (Vector2: is_vector2 => "vector2.is"),
-    (Rect2: is_rect2 => "rect2.is"),
-    (Vector3: is_vector3 => "vector3.is"),
-    (Transform2D: is_transform2d => "transform2d.is"),
-    (Plane: is_plane => "plane.is"),
-    (Quat: is_quat => "quat.is"),
-    (Aabb: is_aabb => "aabb.is"),
-    (Basis: is_basis => "basis.is"),
-    (Transform: is_transform => "transform.is"),
-    (Color: is_color => "color.is"),
-    (Nodepath: is_nodepath => "nodepath.is"),
-    (Rid: is_rid => "rid.is"),
-    (Object: is_object => "object.is"),
-    (Dictionary: is_dictionary => "dictionary.is"),
-    (Array: is_array => "array.is"),
-    (ByteArray: is_byte_array => "byte_array.is"),
-    (IntArray: is_int_array => "int_array.is"),
-    (FloatArray: is_float_array => "float_array.is"),
-    (StringArray: is_string_array => "string_array.is"),
-    (Vector2Array: is_vector2_array => "vector2_array.is"),
-    (Vector3Array: is_vector3_array => "vector3_array.is"),
-    (ColorArray: is_color_array => "color_array.is"),
+    (Bool = 1: is_bool => "bool.is"),
+    (I64 = 2: is_int => "int.is"),
+    (F64 = 3: is_float => "float.is"),
+    (GodotString = 4: is_string => "string.is"),
+    (Vector2 = 5: is_vector2 => "vector2.is"),
+    (Rect2 = 6: is_rect2 => "rect2.is"),
+    (Vector3 = 7: is_vector3 => "vector3.is"),
+    (Transform2D = 8: is_transform2d => "transform2d.is"),
+    (Plane = 9: is_plane => "plane.is"),
+    (Quat = 10: is_quat => "quat.is"),
+    (Aabb = 11: is_aabb => "aabb.is"),
+    (Basis = 12: is_basis => "basis.is"),
+    (Transform = 13: is_transform => "transform.is"),
+    (Color = 14: is_color => "color.is"),
+    (Nodepath = 15: is_nodepath => "nodepath.is"),
+    (Rid = 16: is_rid => "rid.is"),
+    (Object = 17: is_object => "object.is"),
+    (Dictionary = 18: is_dictionary => "dictionary.is"),
+    (Array = 19: is_array => "array.is"),
+    (ByteArray = 20: is_byte_array => "byte_array.is"),
+    (IntArray = 21: is_int_array => "int_array.is"),
+    (FloatArray = 22: is_float_array => "float_array.is"),
+    (StringArray = 23: is_string_array => "string_array.is"),
+    (Vector2Array = 24: is_vector2_array => "vector2_array.is"),
+    (Vector3Array = 25: is_vector3_array => "vector3_array.is"),
+    (ColorArray = 26: is_color_array => "color_array.is"),
 );
 
 pub struct NullValueError(PhantomData<&'static str>);
