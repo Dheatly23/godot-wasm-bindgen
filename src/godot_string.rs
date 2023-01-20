@@ -1,3 +1,4 @@
+use std::iter::FusedIterator;
 use std::ops::{Bound, Range};
 use std::{fmt, ops::RangeBounds};
 
@@ -221,6 +222,29 @@ impl StringArray {
             )
         }
     }
+
+    pub fn slice_iter<T>(&self, range: T) -> Iter<'_>
+    where
+        T: RangeBounds<usize>,
+    {
+        let range = Range {
+            start: match range.start_bound() {
+                Bound::Included(&v) => v,
+                Bound::Excluded(&v) => v + 1,
+                Bound::Unbounded => 0,
+            },
+            end: match range.end_bound() {
+                Bound::Included(&v) => v + 1,
+                Bound::Excluded(&v) => v,
+                Bound::Unbounded => self.len(),
+            },
+        };
+        if range.end > self.len() {
+            panic!("Index out of bound! ({} >= {})", range.end, self.len());
+        }
+
+        Iter { arr: self, range }
+    }
 }
 
 impl TryFrom<GodotValue> for StringArray {
@@ -288,5 +312,54 @@ impl FromIterator<GodotString> for StringArray {
         }
 
         ret
+    }
+}
+
+pub struct Iter<'a> {
+    arr: &'a StringArray,
+    range: Range<usize>,
+}
+
+impl<'a> Iterator for Iter<'a> {
+    type Item = GodotString;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.range.next() {
+            Some(v) => self.arr.get(v),
+            None => None,
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.range.size_hint()
+    }
+}
+
+impl<'a> DoubleEndedIterator for Iter<'a> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        match self.range.next_back() {
+            Some(v) => self.arr.get(v),
+            None => None,
+        }
+    }
+}
+
+impl<'a> ExactSizeIterator for Iter<'a> {
+    fn len(&self) -> usize {
+        self.range.len()
+    }
+}
+
+impl<'a> FusedIterator for Iter<'a> {}
+
+impl<'a> IntoIterator for &'a StringArray {
+    type IntoIter = Iter<'a>;
+    type Item = GodotString;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Iter {
+            range: 0..self.len(),
+            arr: self,
+        }
     }
 }
