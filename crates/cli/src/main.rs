@@ -1,6 +1,6 @@
 mod decode;
-mod export_subs;
 mod runtime;
+mod substitution;
 mod util;
 
 use std::path::PathBuf;
@@ -31,7 +31,8 @@ fn main() -> Result<(), Error> {
     let runtime = runtime::add_runtime(&mut module)?;
 
     if let Some(custom_data) = custom_id.and_then(|id| module.customs.delete(id)) {
-        export_subs::substitute_exports(&mut module, (*custom_data).clone(), &runtime)?;
+        substitution::substitute_exports(&mut module, &custom_data, &runtime)?;
+        substitution::substitute_imports(&mut module, &custom_data, &runtime)?;
     }
 
     gc::run(&mut module);

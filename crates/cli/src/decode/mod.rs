@@ -3,7 +3,7 @@ mod parser;
 use std::borrow::Cow;
 
 use anyhow::{bail, Error};
-use walrus::{CustomSection, Module, TypedCustomSectionId};
+use walrus::{CustomSection, Module, TypedCustomSectionId, ValType};
 
 use crate::util::*;
 
@@ -17,8 +17,65 @@ pub struct GodotWasmBindgenData {
 #[derive(Debug, Clone)]
 pub struct Symbol {
     pub version: [u8; 4],
+    pub inner: SymbolType,
+}
+
+#[derive(Debug, Clone)]
+pub enum SymbolType {
+    ExportFunction(ExportFunction),
+    ImportFunction(ImportFunction),
+}
+
+#[derive(Debug, Clone)]
+pub struct ExportFunction {
     pub name: String,
-    pub extra_data: Vec<u8>,
+    pub args: FunctionArgs,
+}
+
+#[derive(Debug, Clone)]
+pub struct ImportFunction {
+    pub module: String,
+    pub name: String,
+    pub args: FunctionArgs,
+}
+
+#[derive(Debug, Clone)]
+pub struct FunctionArgs {
+    pub params: Vec<ArgType>,
+    pub results: Vec<ArgType>,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum ArgType {
+    U8 = 1,
+    I8,
+    U16,
+    I16,
+    U32,
+    I32,
+    U64,
+    I64,
+    F32,
+    F64,
+    GodotValue,
+}
+
+impl From<ArgType> for ValType {
+    fn from(v: ArgType) -> Self {
+        match v {
+            ArgType::U8
+            | ArgType::I8
+            | ArgType::U16
+            | ArgType::I16
+            | ArgType::U32
+            | ArgType::I32 => Self::I32,
+            ArgType::U64 | ArgType::I64 => Self::I64,
+            ArgType::F32 => Self::F32,
+            ArgType::F64 => Self::F64,
+            ArgType::GodotValue => Self::Externref,
+        }
+    }
 }
 
 impl TryFrom<&[u8]> for GodotWasmBindgenData {
@@ -41,21 +98,45 @@ impl CustomSection for GodotWasmBindgenData {
         let mut ret = Vec::new();
 
         for s in &self.symbols {
-            let Symbol {
-                version,
-                name,
-                extra_data,
-            } = s;
+            let Symbol { version, inner } = s;
 
-            let mut temp: Vec<u8> = Vec::new();
+            let mut temp = Vec::new();
 
-            temp.extend_from_slice(name.as_bytes());
-            tag_length(&mut temp);
-            temp.extend_from_slice(extra_data);
-            tag_length(&mut temp);
+            match inner {
+                SymbolType::ExportFunction(ExportFunction {
+                    name,
+                    args: FunctionArgs { params, results },
+                }) => {
+                    leb128::write::unsigned(&mut temp, 64).unwrap();
+                    leb128::write::unsigned(&mut temp, name.len() as _).unwrap();
+                    temp.extend_from_slice(name.as_bytes());
+
+                    leb128::write::unsigned(&mut temp, params.len() as _).unwrap();
+                    temp.extend(params.iter().map(|&v| v as u8));
+                    leb128::write::unsigned(&mut temp, results.len() as _).unwrap();
+                    temp.extend(results.iter().map(|&v| v as u8));
+                }
+                SymbolType::ImportFunction(ImportFunction {
+                    module,
+                    name,
+                    args: FunctionArgs { params, results },
+                }) => {
+                    leb128::write::unsigned(&mut temp, 0).unwrap();
+                    leb128::write::unsigned(&mut temp, module.len() as _).unwrap();
+                    temp.extend_from_slice(module.as_bytes());
+                    leb128::write::unsigned(&mut temp, name.len() as _).unwrap();
+                    temp.extend_from_slice(name.as_bytes());
+
+                    leb128::write::unsigned(&mut temp, params.len() as _).unwrap();
+                    temp.extend(params.iter().map(|&v| v as u8));
+                    leb128::write::unsigned(&mut temp, results.len() as _).unwrap();
+                    temp.extend(results.iter().map(|&v| v as u8));
+                }
+            }
 
             ret.extend_from_slice(version);
-            ret.extend(temp.into_iter());
+            leb128::write::unsigned(&mut ret, temp.len() as _).unwrap();
+            ret.extend_from_slice(&temp);
         }
 
         ret.into()

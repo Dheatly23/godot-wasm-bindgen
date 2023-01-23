@@ -9,10 +9,10 @@ mod typeis;
 use std::collections::HashMap;
 
 use anyhow::Error;
-use walrus::ir::{dfs_pre_order_mut, VisitorMut};
-use walrus::{FunctionId, GlobalKind, ImportKind, InitExpr, Module};
+use walrus::{FunctionId, ImportKind, Module};
 
 use crate::runtime::RuntimeData;
+use crate::util::map_substitute_funcs;
 
 const MODULE_NAME: &str = "godot_wasm";
 const EXTERNREF_MODULE: &str = "godot_object_v2";
@@ -38,59 +38,7 @@ pub fn generate_imports(module: &mut Module, runtime: &RuntimeData) -> Result<()
 
     println!("{:?}", func_map);
 
-    struct Substitutor<'a>(&'a HashMap<FunctionId, FunctionId>);
-
-    impl VisitorMut for Substitutor<'_> {
-        fn visit_call_mut(&mut self, instr: &mut walrus::ir::Call) {
-            if let Some(&id) = self.0.get(&instr.func) {
-                println!("{:?}", instr);
-                instr.func = id;
-            }
-        }
-    }
-
-    {
-        let mut substitutor = Substitutor(&func_map);
-
-        for (_, f) in module.funcs.iter_local_mut() {
-            dfs_pre_order_mut(&mut substitutor, f, f.entry_block());
-        }
-    }
-
-    for e in module.elements.iter_mut() {
-        if !matches!(e.ty, walrus::ValType::Funcref) {
-            continue;
-        }
-
-        for i in e.members.iter_mut().filter_map(|i| i.as_mut()) {
-            if let Some(&id) = func_map.get(&i) {
-                *i = id;
-            }
-        }
-    }
-
-    {
-        let ids: Vec<_> = module
-            .globals
-            .iter()
-            .filter_map(|g| match &g.kind {
-                GlobalKind::Local(InitExpr::RefFunc(_)) => Some(g.id()),
-                _ => None,
-            })
-            .collect();
-
-        for id in ids {
-            if let GlobalKind::Local(InitExpr::RefFunc(i)) = &mut module.globals.get_mut(id).kind {
-                if let Some(&id) = func_map.get(&i) {
-                    *i = id;
-                }
-            }
-        }
-    }
-
-    for id in func_map.into_keys() {
-        module.funcs.delete(id);
-    }
+    map_substitute_funcs(module, &func_map);
 
     Ok(())
 }
